@@ -3,7 +3,6 @@ import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineQuery, InlineQueryResultArticle, InputTextMessageContent
-import asyncio
 import re
 from config import BOT_TOKEN, FIAT_CURRENCIES, CRYPTO_CURRENCIES, PROCESSING_MODES, CURRENCY_ALIASES
 from currency_service import CurrencyService
@@ -16,6 +15,13 @@ from keyboards import (
 )
 from database import UserDatabase
 from typing import Dict
+
+# Автоматическая оптимизация производительности
+try:
+    from performance_optimizer import optimize_bot_performance
+    optimize_bot_performance()
+except ImportError:
+    print("ℹ️ Модуль оптимизации не найден, используется стандартная конфигурация")
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
