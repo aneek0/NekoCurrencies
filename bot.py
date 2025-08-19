@@ -35,6 +35,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
 			"🤖 Бот создан для распознавания в тексте пар чисел и валют, "
 			"с автоматической последующей конвертацией в другие валюты за актуальными курсами.\n\n"
 			"💬 Попробуйте написать: \"5 гривень\" или \"40$\".\n\n"
+			"🧮 Поддерживает математические выражения: \"(20 + 5) * 4 доллара\" → \"$100\".\n\n"
 			"💬 Для валют вы можете использовать их коды, название, сленг. "
 			"Если валюта не распозналась по названию, то попробуйте написать её код (USD, EUR).\n\n"
 			"💬 Числа могут быть написаны в разных форматах: \"0.1$\" и \"0,1$\"; \"123 524.53$\" и \"123,524.53$\"."
@@ -46,11 +47,13 @@ TEXTS: Dict[str, Dict[str, str]] = {
 			"• Поддержка 150+ фиатных валют\n"
 			"• Поддержка 25+ криптовалют\n"
 			"• Распознавание чисел в тексте\n"
-			"• Поддержка W2N (слова в числа)\n\n"
+			"• Поддержка W2N (слова в числа)\n"
+			"• Математические выражения: \"(20 + 5) * 4 доллара\" → \"$100\"\n\n"
 			"**Как использовать:**\n"
 			"1. Напишите сумму и валюту: \"100 долларов\"\n"
 			"2. Или используйте код валюты: \"50 EUR\"\n"
-			"3. Поддерживаются форматы: \"0.1$\", \"0,1$\", \"123 524.53$\"\n\n"
+			"3. Поддерживаются форматы: \"0.1$\", \"0,1$\", \"123 524.53$\"\n"
+			"4. Математические выражения: \"(20 + 5) * 4$\", \"10 + 20 евро\"\n\n"
 			"**Поддерживаемые валюты:**\n"
 			"• Фиатные: USD, EUR, RUB, UAH, BYN, KZT и другие\n"
 			"• Крипто: BTC, ETH, USDT, BNB, ADA, SOL и другие\n\n"
@@ -143,6 +146,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
 			"🤖 The bot recognizes numbers and currencies in text "
 			"and converts them into other currencies using up-to-date rates.\n\n"
 			"💬 Try: \"5 hryvnias\" or \"40$\".\n\n"
+			"🧮 Supports mathematical expressions: \"(20 + 5) * 4 dollars\" → \"$100\".\n\n"
 			"💬 You can use currency codes, names, or slang. "
 			"If a currency isn't recognized by name, try its code (USD, EUR).\n\n"
 			"💬 Numbers can be written in various formats: \"0.1$\" and \"0,1$\"; \"123 524.53$\" and \"123,524.53$\"."
@@ -154,11 +158,13 @@ TEXTS: Dict[str, Dict[str, str]] = {
 			"• 150+ fiat currencies supported\n"
 			"• 25+ cryptocurrencies supported\n"
 			"• Number recognition in text\n"
-			"• W2N support (words to numbers)\n\n"
+			"• W2N support (words to numbers)\n"
+			"• Mathematical expressions: \"(20 + 5) * 4 dollars\" → \"$100\"\n\n"
 			"**How to use:**\n"
 			"1. Type an amount and currency: \"100 dollars\"\n"
 			"2. Or use a code: \"50 EUR\"\n"
-			"3. Supported formats: \"0.1$\", \"0,1$\", \"123 524.53$\"\n\n"
+			"3. Supported formats: \"0.1$\", \"0,1$\", \"123 524.53$\"\n"
+			"4. Mathematical expressions: \"(20 + 5) * 4$\", \"10 + 20 euros\"\n\n"
 			"**Supported currencies:**\n"
 			"• Fiat: USD, EUR, RUB, UAH, BYN, KZT and more\n"
 			"• Crypto: BTC, ETH, USDT, BNB, ADA, SOL and more\n\n"
@@ -407,8 +413,13 @@ async def process_back_callback(callback: CallbackQuery):
 		elif callback.data == "back_to_crypto":
 			text = _t('crypto_menu', lang)
 			await callback.message.edit_text(text, reply_markup=get_letter_keyboard("crypto", lang))
-	except Exception:
-		await callback.answer(_t('already_here', db.get_language(callback.from_user.id)))
+	except Exception as e:
+		# Try to get language again, but fallback to default if it fails
+		try:
+			fallback_lang = db.get_language(callback.from_user.id)
+		except:
+			fallback_lang = 'en'  # Default fallback
+		await callback.answer(_t('already_here', fallback_lang))
 
 @dp.callback_query(lambda c: c.data == "api_source")
 async def process_api_source_callback(callback: CallbackQuery):

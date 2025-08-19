@@ -7,6 +7,7 @@ from config import (
     FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES
 )
 from word2number import w2n
+from math_parser import MathParser
 import asyncio
 
 class CurrencyService:
@@ -18,6 +19,9 @@ class CurrencyService:
         # ExchangeRate-API (резервный)
         self.exchangerate_api_key = EXCHANGE_RATE_API_KEY
         self.exchangerate_base_url = EXCHANGE_RATE_BASE_URL
+        
+        # Математический парсер
+        self.math_parser = MathParser()
         
         self.rates_cache = {}
         self.cache_timeout = 600  # 10 minutes (увеличиваем время кэширования)
@@ -283,6 +287,11 @@ class CurrencyService:
         """Извлечение числа и валюты из текста"""
         text = text.strip().lower()
         
+        # Сначала проверяем математические выражения
+        math_result = self.evaluate_math_expression(text)
+        if math_result:
+            return math_result
+        
         # Сначала нормализуем десятичные разделители и уберем пробелы в числах
         norm_text = self.normalize_number(text)
         
@@ -491,6 +500,64 @@ class CurrencyService:
         
         return None
     
+    def evaluate_math_expression(self, text: str) -> Optional[Tuple[float, str]]:
+        """
+        Вычисляет математическое выражение с валютой
+        
+        Args:
+            text: Текст с математическим выражением
+            
+        Returns:
+            Tuple[float, str] или None: (результат, валюта)
+        """
+        try:
+            # Пытаемся вычислить математическое выражение
+            result = self.math_parser.parse_and_evaluate(text)
+            if result:
+                value, currency = result
+                
+                # Сначала пытаемся резолвить извлеченный токен валюты
+                if currency:
+                    resolved = self.resolve_currency(currency)
+                    if resolved:
+                        return value, resolved
+                
+                # Затем ищем алиасы по границам слова, с приоритетом длинных
+                lowered = text.lower()
+                aliases_sorted = sorted(CURRENCY_ALIASES.items(), key=lambda kv: len(kv[0]), reverse=True)
+                for alias, code in aliases_sorted:
+                    # Пропускаем слишком короткие алиасы (например, 'р'), чтобы избежать ложных срабатываний
+                    if len(alias) == 1:
+                        continue
+                    pattern = r'(?<![a-zа-яё])' + re.escape(alias) + r'(?![a-zа-яё])'
+                    if re.search(pattern, lowered):
+                        return value, code
+                
+                # Проверяем валютные символы непосредственно в тексте
+                currency_symbols = {
+                    '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY', 
+                    '₽': 'RUB', '₴': 'UAH', '₸': 'KZT', '₩': 'KRW', 
+                    '₹': 'INR', '₿': 'BTC', 'Ξ': 'ETH', '💎': 'TON'
+                }
+                for symbol, code in currency_symbols.items():
+                    if symbol in text:
+                        return value, code
+                
+                # Проверяем коды валют как отдельные токены
+                for code in list(FIAT_CURRENCIES.keys()) + list(CRYPTO_CURRENCIES.keys()):
+                    pattern = r'(?<![A-Za-z])' + re.escape(code.lower()) + r'(?![A-Za-z])'
+                    if re.search(pattern, lowered):
+                        return value, code
+                
+                # Если ничего не найдено, возвращаем None
+                return None
+            
+            return None
+            
+        except Exception as e:
+            print(f"Ошибка при вычислении математического выражения: {e}")
+        return None
+    
     async def convert_currency(self, amount: float, from_currency: str, to_currencies: List[str], api_source: str = 'auto') -> Dict:
         """Конвертация валюты через USD для экономии API запросов"""
         if from_currency in CRYPTO_CURRENCIES:
@@ -503,29 +570,37 @@ class CurrencyService:
         usd_rates = await self.get_exchange_rates('USD', api_source=api_source)
         if not usd_rates:
             return {}
+        
         results: Dict[str, Dict[str, float]] = {}
+        api_used = api_source if api_source in ['currencyfreaks','exchangerate'] else 'auto'
+        
         if from_currency == 'USD':
             usd_amount = amount
         elif from_currency in usd_rates:
             usd_amount = amount / float(usd_rates[from_currency])
         else:
+            # Пробуем fallback курсы
             fallback_rates = self._get_fallback_rates('USD')
             if from_currency in fallback_rates:
                 usd_amount = amount / fallback_rates[from_currency]
                 api_used = 'fallback'
             else:
                 return {}
-        api_used = api_source if api_source in ['currencyfreaks','exchangerate'] else 'auto'
+        
         for to_currency in to_currencies:
             if to_currency == 'USD':
                 results[to_currency] = {'amount': usd_amount, 'source': api_used}
             elif to_currency in usd_rates:
                 rate = float(usd_rates[to_currency])
-                results[to_currency] = {'amount': usd_amount * rate, 'source': api_used}
+                converted_amount = usd_amount * rate
+                results[to_currency] = {'amount': converted_amount, 'source': api_used}
             else:
+                # Пробуем fallback курсы для целевой валюты
                 fallback_rates = self._get_fallback_rates('USD')
                 if to_currency in fallback_rates:
-                    results[to_currency] = {'amount': usd_amount * fallback_rates[to_currency], 'source': 'fallback'}
+                    converted_amount = usd_amount * fallback_rates[to_currency]
+                    results[to_currency] = {'amount': converted_amount, 'source': 'fallback'}
+        
         return results
 
     async def _convert_crypto(self, amount: float, from_currency: str, to_currencies: List[str]) -> Dict:

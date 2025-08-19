@@ -5,6 +5,7 @@ A Telegram bot that automatically recognizes currency amounts in text messages a
 ## 🌟 Features
 
 - **Smart Text Recognition**: Automatically detects numbers and currencies in messages
+- **Mathematical Expressions**: Supports calculations like "(20 + 5) * 4 dollars" → "$100"
 - **150+ Fiat Currencies**: USD, EUR, RUB, UAH, BYN, KZT, and many more
 - **25+ Cryptocurrencies**: BTC, ETH, USDT, BNB, ADA, SOL, and others
 - **Real-time Rates**: Uses CurrencyFreaks API with fallback rates
@@ -94,6 +95,18 @@ Output:
 🇪🇺19125.00€ EUR
 🇷🇺1800000.00₽ RUB
 💎7500.00 ETH
+```
+
+### Mathematical Expressions
+```
+Input: "(20 + 5) * 4 dollars"
+Output: $100
+
+Input: "100 + 200 + 300 euros"
+Output: €600
+
+Input: "(1000 - 100) / 3 rubles"
+Output: ₽300
 ```
 
 ### Inline Mode
