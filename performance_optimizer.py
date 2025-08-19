@@ -41,26 +41,20 @@ class PerformanceOptimizer:
             # Используем ProactorEventLoop для лучшей производительности на Windows
             asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
             
-            # Дополнительные настройки для Windows
+            # Базовая оптимизация Windows без внешних зависимостей
+            logger.info("✅ Windows event loop оптимизирован (базовая настройка)")
+            
+            # Настройка для лучшей производительности на Windows
             try:
-                import asyncio_windows_utils
-                logger.info("✅ Windows event loop оптимизирован с asyncio-windows-utils")
-                return True
-            except ImportError:
-                # Базовая оптимизация Windows без внешних зависимостей
-                logger.info("✅ Windows event loop оптимизирован (базовая настройка)")
-                
-                # Настройка для лучшей производительности на Windows
-                try:
-                    # Увеличиваем лимиты для Windows
-                    import sys
-                    if hasattr(sys, 'getwindowsversion'):
-                        # Windows-специфичные настройки
-                        logger.info("✅ Применены Windows-специфичные настройки")
-                except:
-                    pass
-                
-                return True
+                # Увеличиваем лимиты для Windows
+                import sys
+                if hasattr(sys, 'getwindowsversion'):
+                    # Windows-специфичные настройки
+                    logger.info("✅ Применены Windows-специфичные настройки")
+            except:
+                pass
+            
+            return True
                 
         except Exception as e:
             logger.error(f"Ошибка при оптимизации Windows event loop: {e}")

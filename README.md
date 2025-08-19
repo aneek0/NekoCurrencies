@@ -81,7 +81,7 @@ python bot.py
 The bot automatically detects your operating system and applies the best performance optimizations:
 
 - **Unix/Linux/macOS**: Uses `uvloop` for 2-4x performance improvement
-- **Windows**: Optimized with `asyncio-windows-utils` and `WindowsProactorEventLoopPolicy`
+- **Windows**: Optimized with `WindowsProactorEventLoopPolicy`
 
 ### Benchmarking
 Test performance improvements:
@@ -95,10 +95,14 @@ python benchmark.py
 pip install uvloop
 
 # For Windows
-pip install asyncio-windows-utils
+# Built-in optimizations, no additional packages needed
 ```
 
 See [PERFORMANCE_OPTIMIZATION.md](PERFORMANCE_OPTIMIZATION.md) for detailed information.
+
+## 🌐 Other Languages
+
+- [Русский](README-ru.md) - Russian documentation
 
 ## 💡 Usage Examples
 

@@ -20,17 +20,12 @@ pip install -r requirements.txt
 pip install uvloop
 ```
 
-### For Windows
-```bash
-# Windows optimizations are built-in, no additional packages needed
-```
-
 ## 🚀 Автоматическая оптимизация
 
 Бот автоматически определяет операционную систему и применяет соответствующие оптимизации:
 
 1. **Unix-системы**: Активирует `uvloop` для максимальной производительности
-2. **Windows**: Использует `WindowsProactorEventLoopPolicy` и дополнительные утилиты
+2. **Windows**: Использует `WindowsProactorEventLoopPolicy` для лучшей производительности
 3. **Другие системы**: Использует стандартную конфигурацию
 
 ## 📈 Измерение производительности
@@ -87,10 +82,10 @@ print(f"Примененные оптимизации: {info['optimizations_appl
 - Несовместим с Windows
 - Может вызвать проблемы с некоторыми библиотеками
 
-### Windows Optimizations
-- Uses `WindowsProactorEventLoopPolicy`
-- Built-in optimizations without external dependencies
-- May not work with some older Python versions
+### Windows оптимизации
+- Использует `WindowsProactorEventLoopPolicy`
+- Встроенная оптимизация без внешних зависимостей
+- Может не работать с некоторыми старыми версиями Python
 
 ## 🐛 Устранение неполадок
 
@@ -103,9 +98,9 @@ pip install uvloop
 export UVLOOP_DISABLE=1
 ```
 
-### Windows Issues
+### Проблемы с Windows
 ```bash
-# Use standard policy if needed
+# Используйте стандартную политику
 python -c "import asyncio; asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())"
 ```
 
@@ -119,7 +114,6 @@ python -c "import asyncio; asyncio.set_event_loop_policy(asyncio.DefaultEventLoo
 ## 📚 Дополнительные ресурсы
 
 - [uvloop документация](https://uvloop.readthedocs.io/)
-
 - [Python asyncio оптимизация](https://docs.python.org/3/library/asyncio.html)
 
 ## 🔄 Обновление оптимизаций
@@ -128,9 +122,6 @@ python -c "import asyncio; asyncio.set_event_loop_policy(asyncio.DefaultEventLoo
 
 ```bash
 # Обновить uvloop
-pip install --upgrade uvloop
-
-# Update uvloop (Unix systems only)
 pip install --upgrade uvloop
 
 # Перезапустить бота
