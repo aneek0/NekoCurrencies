@@ -1,5 +1,9 @@
 # 💱 Currency Converter Bot
 
+## 🌐 Other Languages
+
+- [Русский](README-ru.md) - Russian documentation 
+
 A Telegram bot that automatically recognizes currency amounts in text messages and converts them to other currencies using real-time exchange rates.
 
 ## 🌟 Features
@@ -179,7 +183,3 @@ Output: ₽300
 ## 📄 License
 
 This project is licensed under the MIT License.
-
-## 🌐 Other Languages
-
-- [Русский](README.ru.md) - Russian documentation 
