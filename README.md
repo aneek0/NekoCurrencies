@@ -182,4 +182,4 @@ This project is licensed under the MIT License.
 
 ## 🌐 Other Languages
 
-- [Русский](README.ru.md) - Russian documentation 
+- [Русский](README-ru.md) - Russian documentation 
