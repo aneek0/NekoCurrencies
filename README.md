@@ -18,6 +18,7 @@ A Telegram bot that automatically recognizes currency amounts in text messages a
 - **Inline Mode**: Use in any chat with @username
 - **Multi-language**: Russian and English interface
 - **Smart Caching**: Efficient API usage with intelligent fallbacks
+- **JSON Database**: Simple and portable user data storage
 
 ## 🚀 Quick Start
 
@@ -39,7 +40,13 @@ A Telegram bot that automatically recognizes currency amounts in text messages a
 ## ⚙️ Setup
 
 ### Environment Variables
-Create a `.env` file:
+Copy `.env.example` to `.env` and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` file with your actual values:
 ```env
 BOT_TOKEN=your_telegram_bot_token
 CURRENCY_FREAKS_API_KEY=your_api_key
@@ -48,7 +55,18 @@ EXCHANGE_RATE_API_KEY=your_backup_api_key
 
 ### Installation
 ```bash
+# 1. Clone the repository
+git clone <your-repo-url>
+cd NekoCurrencies
+
+# 2. Install dependencies
 pip install -r requirements.txt
+
+# 3. Set up environment variables
+cp .env.example .env
+# Edit .env file with your actual values
+
+# 4. Run the bot
 python bot.py
 ```
 
@@ -99,6 +117,40 @@ pip install uvloop
 ```
 
 See [PERFORMANCE_OPTIMIZATION.md](PERFORMANCE_OPTIMIZATION.md) for detailed information.
+
+## 💾 Data Storage
+
+The bot uses a simple JSON file (`users.json`) to store user preferences and settings:
+
+```json
+{
+  "123456789": {
+    "user_id": 123456789,
+    "processing_mode": "standard",
+    "api_source": "auto",
+    "debug_mode": false,
+    "language": "ru",
+    "appearance": {
+      "show_flags": true,
+      "show_codes": true,
+      "show_symbols": true,
+      "compact": false
+    },
+    "selected_currencies": {
+      "fiat": ["USD", "EUR"],
+      "crypto": ["BTC", "ETH"]
+    },
+    "created_at": "2023-01-01T00:00:00.000000",
+    "last_activity": "2023-01-01T12:00:00.000000"
+  }
+}
+```
+
+**Benefits of JSON storage:**
+- ✅ No external database dependencies
+- ✅ Easy to backup and transfer
+- ✅ Human-readable format for debugging
+- ✅ Simple deployment and maintenance
 
 ## 🌐 Other Languages
 

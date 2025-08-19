@@ -1,0 +1,123 @@
+# ========================================
+# NekoCurrencies Bot - Environment Variables
+# ========================================
+# Copy this file to .env and fill in your values
+# Скопируйте этот файл в .env и заполните своими значениями
+
+# ========================================
+# REQUIRED VARIABLES / ОБЯЗАТЕЛЬНЫЕ ПЕРЕМЕННЫЕ
+# ========================================
+
+# Your Telegram bot token (get it from @BotFather)
+# Токен вашего Telegram бота (получите у @BotFather)
+BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+
+# ========================================
+# API KEYS / API КЛЮЧИ
+# ========================================
+
+# Primary API for currency rates (recommended)
+# Основной API для курсов валют (рекомендуется)
+CURRENCY_FREAKS_API_KEY=your_currency_freaks_api_key_here
+
+# Backup API for currency rates (optional)
+# Запасной API для курсов валют (опционально)
+EXCHANGE_RATE_API_KEY=your_backup_api_key_here
+
+# ========================================
+# BOT SETTINGS / НАСТРОЙКИ БОТА
+# ========================================
+
+# Default bot language (ru/en)
+# Язык бота по умолчанию (ru/en)
+DEFAULT_LANGUAGE=ru
+
+# Debug mode (true/false)
+# Режим отладки (true/false)
+DEBUG_MODE=false
+
+# ========================================
+# CACHING SETTINGS / НАСТРОЙКИ КЭШИРОВАНИЯ
+# ========================================
+
+# Currency rates cache lifetime in seconds (default: 300 = 5 minutes)
+# Время жизни кэша курсов валют в секундах (по умолчанию: 300 = 5 минут)
+CACHE_LIFETIME=300
+
+# Maximum number of cached requests (default: 1000)
+# Максимальное количество кэшированных запросов (по умолчанию: 1000)
+MAX_CACHE_SIZE=1000
+
+# ========================================
+# LOGGING SETTINGS / НАСТРОЙКИ ЛОГИРОВАНИЯ
+# ========================================
+
+# Logging level (DEBUG/INFO/WARNING/ERROR/CRITICAL)
+# Уровень логирования (DEBUG/INFO/WARNING/ERROR/CRITICAL)
+LOG_LEVEL=INFO
+
+# Path to log file (optional)
+# Путь к файлу логов (опционально)
+LOG_FILE=logs/bot.log
+
+# ========================================
+# DATABASE SETTINGS / НАСТРОЙКИ БАЗЫ ДАННЫХ
+# ========================================
+
+# Path to JSON database file (default: users.json)
+# Путь к JSON файлу базы данных (по умолчанию: users.json)
+DATABASE_FILE=users.json
+
+# ========================================
+# PERFORMANCE SETTINGS / НАСТРОЙКИ ПРОИЗВОДИТЕЛЬНОСТИ
+# ========================================
+
+# Disable uvloop (Unix systems only)
+# Отключить uvloop (только для Unix систем)
+UVLOOP_DISABLE=false
+
+# Maximum number of concurrent API requests
+# Максимальное количество одновременных запросов к API
+MAX_CONCURRENT_REQUESTS=10
+
+# API request timeout in seconds
+# Таймаут для API запросов в секундах
+API_TIMEOUT=30
+
+# ========================================
+# EXAMPLES / ПРИМЕРЫ
+# ========================================
+
+# Development example / Пример для разработки:
+# BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+# CURRENCY_FREAKS_API_KEY=test_key_12345
+# DEBUG_MODE=true
+# LOG_LEVEL=DEBUG
+
+# Production example / Пример для продакшена:
+# BOT_TOKEN=9876543210:ZYXwvuTSRqpONMlkjIHGfedCBA
+# CURRENCY_FREAKS_API_KEY=prod_key_67890
+# DEBUG_MODE=false
+# LOG_LEVEL=WARNING
+# CACHE_LIFETIME=600
+
+# ========================================
+# GETTING API KEYS / ПОЛУЧЕНИЕ API КЛЮЧЕЙ
+# ========================================
+
+# CurrencyFreaks API: https://currencyfreaks.com/
+# ExchangeRate-API: https://exchangerate-api.com/
+# Telegram Bot: @BotFather
+
+# ========================================
+# IMPORTANT NOTES / ВАЖНЫЕ ПРИМЕЧАНИЯ
+# ========================================
+
+# 1. Never commit .env file to repository!
+#    Никогда не коммитьте .env файл в репозиторий!
+# 2. Keep API keys in a safe place
+#    Храните API ключи в безопасном месте
+# 3. For production use server environment variables
+#    Для продакшена используйте переменные окружения сервера
+# 4. Database is stored in JSON file (users.json)
+#    База данных хранится в JSON файле (users.json) 

@@ -4,40 +4,47 @@
     "iterations": 30,
     "avg_time_ms": 0.07,
     "min_time_ms": 0.0,
-    "max_time_ms": 1.01,
+    "max_time_ms": 1.0,
     "std_dev_ms": 0.25,
-    "total_time_ms": 2.01
+    "total_time_ms": 2.0
   },
   "math_parsing": {
     "test_type": "math_parsing",
     "iterations": 250,
-    "avg_time_ms": 0.026,
+    "avg_time_ms": 0.028,
     "min_time_ms": 0.0,
-    "max_time_ms": 1.544,
-    "std_dev_ms": 0.188,
-    "total_time_ms": 6.576
+    "max_time_ms": 1.014,
+    "std_dev_ms": 0.166,
+    "total_time_ms": 7.031
   },
   "text_processing": {
     "test_type": "text_processing",
     "iterations": 500,
-    "avg_time_ms": 15.212,
-    "min_time_ms": 9.048,
-    "max_time_ms": 16.258,
-    "std_dev_ms": 0.426,
-    "total_time_ms": 7605.912
+    "avg_time_ms": 15.178,
+    "min_time_ms": 2.215,
+    "max_time_ms": 16.068,
+    "std_dev_ms": 0.653,
+    "total_time_ms": 7588.932
   },
   "summary": {
-    "total_benchmark_time": 7.62,
+    "total_benchmark_time": 7.6,
     "system_info": {
       "system": "Windows",
       "python_version": "3.10.6",
       "optimizations_applied": [
-        "WindowsProactorEventLoopPolicy"
+        "WindowsProactorEventLoopPolicy",
+        "orjson",
+        "aiofiles",
+        "httpx"
       ],
       "event_loop_policy": "WindowsProactorEventLoopPolicy",
       "uvloop_available": false,
-      "uvloop_note": "Не установлен"
+      "uvloop_note": "Не установлен",
+      "orjson_available": true,
+      "ujson_available": false,
+      "aiofiles_available": true,
+      "httpx_available": true
     },
-    "timestamp": "2025-08-20 00:20:16"
+    "timestamp": "2025-08-20 01:15:58"
   }
 }
