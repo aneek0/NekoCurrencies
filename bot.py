@@ -407,6 +407,10 @@ async def process_select_currency_callback(callback: CallbackQuery):
         else:
             await callback.answer(_t('removed_currency', lang, name=currency_name))
         
+        # Небольшая задержка для лучшего UX
+        import asyncio
+        await asyncio.sleep(0.3)
+        
         # Обновляем текущую страницу с буквой
         # Находим букву из текущего текста
         current_text = callback.message.text
@@ -419,8 +423,11 @@ async def process_select_currency_callback(callback: CallbackQuery):
                 # Обновляем список выбранных валют
                 selected = db.get_selected_currencies(user_id)
                 selected_codes = selected['fiat'] if currency_type == 'fiat' else selected['crypto']
-                await callback.message.edit_reply_markup(
-                    get_currencies_by_letter_keyboard(currency_type, letter, selected_codes, db.get_language(callback.from_user.id))
+                lang = db.get_language(callback.from_user.id)
+                # Обновляем и текст, и клавиатуру одновременно
+                await callback.message.edit_text(
+                    _t('choose_by_letter', lang, letter=letter),
+                    reply_markup=get_currencies_by_letter_keyboard(currency_type, letter, selected_codes, lang)
                 )
     except Exception as e:
         await callback.answer("Ошибка при изменении валюты")
