@@ -407,9 +407,6 @@ async def process_select_currency_callback(callback: CallbackQuery):
         else:
             await callback.answer(_t('removed_currency', lang, name=currency_name))
         
-        # Небольшая задержка для лучшего UX
-        import asyncio
-        await asyncio.sleep(0.3)
         
         # Обновляем текущую страницу с буквой
         # Находим букву из текущего текста
