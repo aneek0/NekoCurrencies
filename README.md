@@ -1,5 +1,7 @@
 # 💱 Currency Converter Bot
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/a3002ad60c4445109a541d92e345398e)](https://app.codacy.com/gh/aneek0/NekoCurrencies?utm_source=github.com&utm_medium=referral&utm_content=aneek0/NekoCurrencies&utm_campaign=Badge_Grade)
+
 ## 🌐 Other Languages
 
 - [Русский](README-ru.md) - Russian documentation 
