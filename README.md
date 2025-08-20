@@ -93,30 +93,11 @@ python bot.py
 - Compact mode for cryptocurrencies
 - Debug mode shows data sources
 
-## ⚡ Performance Optimization
+## ⚡ Performance
 
-### Automatic Optimization
-The bot automatically detects your operating system and applies the best performance optimizations:
-
-- **Unix/Linux/macOS**: Uses `uvloop` for 2-4x performance improvement
-- **Windows**: Optimized with `WindowsProactorEventLoopPolicy`
-
-### Benchmarking
-Test performance improvements:
-```bash
-python benchmark.py
-```
-
-### Manual Optimization
-```bash
-# For Unix systems
-pip install uvloop
-
-# For Windows
-# Built-in optimizations, no additional packages needed
-```
-
-See [PERFORMANCE_OPTIMIZATION.md](PERFORMANCE_OPTIMIZATION.md) for detailed information.
+The bot automatically applies performance optimizations:
+- **Unix/Linux/macOS**: Uses `uvloop` for faster event loop
+- **Windows**: Uses `WindowsProactorEventLoopPolicy` for better performance
 
 ## 💾 Data Storage
 

@@ -17,11 +17,19 @@ from database import UserDatabase
 from typing import Dict
 
 # Автоматическая оптимизация производительности
-try:
-    from performance_optimizer import optimize_bot_performance
-    optimize_bot_performance()
-except ImportError:
-    print("ℹ️ Модуль оптимизации не найден, используется стандартная конфигурация")
+import asyncio
+import sys
+
+if sys.platform == "win32":
+    # Windows: используем ProactorEventLoop для лучшей производительности
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+else:
+    # Unix: пытаемся использовать uvloop
+    try:
+        import uvloop
+        uvloop.install()
+    except ImportError:
+        pass  # Используем стандартный event loop
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
