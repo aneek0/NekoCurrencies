@@ -386,6 +386,7 @@ class CurrencyService:
             try:
                 return w2n.word_to_num(clean_text)
             except Exception:
+                # Fallback к русским числам
                 pass
             
             # Затем пробуем русские числа
