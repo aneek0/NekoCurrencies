@@ -6,7 +6,7 @@ word2number==1.1
 uvloop==0.19.0; sys_platform != "win32"
 
 # Performance optimizations (optional)
-orjson>=3.9.0; sys_platform != "win32"
+orjson>=3.9.15; sys_platform != "win32"
 ujson>=5.8.0
 aiofiles>=23.2.1
 httpx>=0.25.0
