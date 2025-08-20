@@ -333,8 +333,6 @@ async def process_set_mode_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == "back_to_settings")
 async def process_back_to_settings_callback(callback: CallbackQuery):
 	"""Обработчик кнопки назад к настройкам"""
-	user_id = callback.from_user.id
-	
 	try:
 		lang = db.get_language(callback.from_user.id)
 		settings_text = _t('settings', lang)
