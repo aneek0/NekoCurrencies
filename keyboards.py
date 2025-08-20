@@ -1,6 +1,5 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
-from config import FIAT_CURRENCIES, CRYPTO_CURRENCIES, PROCESSING_MODES
-import string
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from config import FIAT_CURRENCIES, CRYPTO_CURRENCIES
 from typing import List
 
 def get_main_menu_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:

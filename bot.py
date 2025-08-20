@@ -4,10 +4,10 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineQuery, InlineQueryResultArticle, InputTextMessageContent
 import re
-from config import BOT_TOKEN, FIAT_CURRENCIES, CRYPTO_CURRENCIES, PROCESSING_MODES, CURRENCY_ALIASES
+from config import BOT_TOKEN, FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES
 from currency_service import CurrencyService
 from keyboards import (
-    get_main_menu_keyboard, get_currency_type_keyboard, get_letter_keyboard,
+    get_main_menu_keyboard, get_letter_keyboard,
     get_currencies_by_letter_keyboard, get_settings_keyboard, 
     get_processing_mode_keyboard, get_back_keyboard, get_help_keyboard,
     get_currency_selection_keyboard, get_api_source_keyboard, get_debug_mode_keyboard,
@@ -17,7 +17,6 @@ from database import UserDatabase
 from typing import Dict
 
 # Автоматическая оптимизация производительности
-import asyncio
 import sys
 
 if sys.platform == "win32":
@@ -464,7 +463,7 @@ async def process_back_callback(callback: CallbackQuery):
 		# Try to get language again, but fallback to default if it fails
 		try:
 			fallback_lang = db.get_language(callback.from_user.id)
-		except:
+		except Exception:
 			fallback_lang = 'en'  # Default fallback
 		await callback.answer(_t('already_here', fallback_lang))
 
