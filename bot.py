@@ -3,7 +3,6 @@ import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineQuery, InlineQueryResultArticle, InputTextMessageContent
-import re
 from config import BOT_TOKEN, FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES
 from currency_service import CurrencyService
 from keyboards import (
@@ -332,16 +331,15 @@ async def process_set_mode_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "back_to_settings")
 async def process_back_to_settings_callback(callback: CallbackQuery):
-    """Обработчик кнопки назад к настройкам"""
-    user_id = callback.from_user.id
-    current_mode = db.get_processing_mode(user_id)
-    
-    try:
-        lang = db.get_language(callback.from_user.id)
-        settings_text = _t('settings', lang)
-        await callback.message.edit_text(settings_text, reply_markup=get_settings_keyboard(lang))
-    except Exception as e:
-        await callback.answer(_t('already_here', db.get_language(callback.from_user.id)))
+	"""Обработчик кнопки назад к настройкам"""
+	user_id = callback.from_user.id
+	
+	try:
+		lang = db.get_language(callback.from_user.id)
+		settings_text = _t('settings', lang)
+		await callback.message.edit_text(settings_text, reply_markup=get_settings_keyboard(lang))
+	except Exception:
+		await callback.answer(_t('already_here', db.get_language(callback.from_user.id)))
 
 @dp.callback_query(lambda c: c.data == "back_to_main")
 async def process_back_to_main_callback(callback: CallbackQuery):
