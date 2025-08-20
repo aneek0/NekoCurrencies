@@ -119,13 +119,13 @@ class CurrencyService:
                     data = await response.json()
                     return data.get('rates', {})
                 elif response.status == 402:
-                    print(f"❌ CurrencyFreaks API Error 402: Payment Required - исчерпан лимит запросов")
+                    print("❌ CurrencyFreaks API Error 402: Payment Required - исчерпан лимит запросов")
                     return None
                 elif response.status == 403:
-                    print(f"❌ CurrencyFreaks API Error 403: Forbidden - неверный API ключ")
+                    print("❌ CurrencyFreaks API Error 403: Forbidden - неверный API ключ")
                     return None
                 elif response.status == 429:
-                    print(f"❌ CurrencyFreaks API Error 429: Too Many Requests - превышен лимит запросов")
+                    print("❌ CurrencyFreaks API Error 429: Too Many Requests - превышен лимит запросов")
                     return None
                 else:
                     print(f"❌ CurrencyFreaks API Error: {response.status}")
@@ -144,13 +144,13 @@ class CurrencyService:
                     data = await response.json()
                     return data.get('conversion_rates', {})
                 elif response.status == 402:
-                    print(f"❌ ExchangeRate-API Error 402: Payment Required - исчерпан лимит запросов")
+                    print("❌ ExchangeRate-API Error 402: Payment Required - исчерпан лимит запросов")
                     return None
                 elif response.status == 403:
-                    print(f"❌ ExchangeRate-API Error 403: Forbidden - неверный API ключ")
+                    print("❌ ExchangeRate-API Error 403: Forbidden - неверный API ключ")
                     return None
                 elif response.status == 429:
-                    print(f"❌ ExchangeRate-API Error 429: Too Many Requests - превышен лимит запросов")
+                    print("❌ ExchangeRate-API Error 429: Too Many Requests - превышен лимит запросов")
                     return None
                 else:
                     print(f"❌ ExchangeRate-API Error: {response.status}")
@@ -198,7 +198,7 @@ class CurrencyService:
             'HRK': 6.44, 'EEK': 13.4, 'FIM': 5.08, 'FRF': 5.6,
             'DEM': 1.67, 'GRD': 293.0, 'IEP': 0.67, 'ITL': 1650.0,
             'LVL': 0.60, 'LTL': 2.90, 'LUF': 40.3, 'MTL': 1.33,
-            'NLG': 2.20, 'PLN': 3.64, 'PTE': 200.0, 'ROL': 42000.0,
+            'NLG': 2.20, 'PTE': 200.0, 'ROL': 42000.0,
             'SIT': 240.0, 'SKK': 25.7, 'ESP': 166.0, 'SEK': 9.56,
             'CHF': 0.81, 'UAH': 41.0, 'BYN': 3.33, 'RUB': 80.0,
             'KZT': 541.0, 'UZS': 12550.0, 'TJS': 9.32, 'TMT': 3.51,
@@ -385,12 +385,12 @@ class CurrencyService:
             # Сначала пробуем английские числа
             try:
                 return w2n.word_to_num(clean_text)
-            except:
+            except Exception:
                 pass
             
             # Затем пробуем русские числа
             return self._russian_words_to_number(clean_text)
-        except:
+        except Exception:
             return None
     
     def _russian_words_to_number(self, text: str) -> Optional[float]:

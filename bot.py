@@ -3,12 +3,11 @@ import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineQuery, InlineQueryResultArticle, InputTextMessageContent
-import asyncio
 import re
-from config import BOT_TOKEN, FIAT_CURRENCIES, CRYPTO_CURRENCIES, PROCESSING_MODES, CURRENCY_ALIASES
+from config import BOT_TOKEN, FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES
 from currency_service import CurrencyService
 from keyboards import (
-    get_main_menu_keyboard, get_currency_type_keyboard, get_letter_keyboard,
+    get_main_menu_keyboard, get_letter_keyboard,
     get_currencies_by_letter_keyboard, get_settings_keyboard, 
     get_processing_mode_keyboard, get_back_keyboard, get_help_keyboard,
     get_currency_selection_keyboard, get_api_source_keyboard, get_debug_mode_keyboard,
@@ -16,6 +15,20 @@ from keyboards import (
 )
 from database import UserDatabase
 from typing import Dict
+
+# Автоматическая оптимизация производительности
+import sys
+
+if sys.platform == "win32":
+    # Windows: используем ProactorEventLoop для лучшей производительности
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+else:
+    # Unix: пытаемся использовать uvloop
+    try:
+        import uvloop
+        uvloop.install()
+    except ImportError:
+        pass  # Используем стандартный event loop
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -86,6 +99,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
 		'fiat_menu': "Вы в меню настройки валют, в которые будет выполняться конвертация.\nПожалуйста, выберите необходимый пункт:",
 		'crypto_menu': "Вы в меню настройки криптовалют, в которые будет выполняться конвертация.\nПожалуйста, выберите необходимый пункт:",
 		'choose_by_letter': "Выберите валюту, начинающуюся на букву '{letter}':",
+		'no_currencies_selected': "⚠️ У вас не выбраны валюты для конвертации!\n\nПожалуйста, настройте валюты в /settings → 💵 Валюты для конвертации",
 		'error_processing': "Произошла ошибка при обработке сообщения. Попробуйте еще раз.",
 		'conversion_failed': "Не удалось конвертировать {amount} {from_currency}",
 		'inline_help_title': "💡 Как использовать инлайн режим",
@@ -140,6 +154,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
 		'debug_title': "Режим отладки. Показывать источник данных для каждой строки?",
 		'debug_changed': "Режим отладки обновлен!",
 		'added_currency': "Добавлена валюта: {name}",
+		'removed_currency': "Убрана валюта: {name}",
 	},
 	'en': {
 		'welcome': (
@@ -197,6 +212,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
 		'fiat_menu': "Fiat currencies selection menu.\nPlease choose a letter:",
 		'crypto_menu': "Cryptocurrency selection menu.\nPlease choose a letter:",
 		'choose_by_letter': "Choose a currency starting with '{letter}':",
+		'no_currencies_selected': "⚠️ You haven't selected currencies for conversion!\n\nPlease configure currencies in /settings → 💵 Target currencies",
 		'error_processing': "An error occurred while processing the message. Try again.",
 		'conversion_failed': "Failed to convert {amount} {from_currency}",
 		'inline_help_title': "💡 How to use inline mode",
@@ -251,6 +267,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
 		'debug_title': "Debug mode. Show data source for each line?",
 		'debug_changed': "Debug mode updated!",
 		'added_currency': "Added currency: {name}",
+		'removed_currency': "Removed currency: {name}",
 	},
 }
 
@@ -366,29 +383,58 @@ async def process_letter_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data.startswith("select_currency_"))
 async def process_select_currency_callback(callback: CallbackQuery):
-    """Обработчик выбора валюты"""
+    """Обработчик выбора/отмены валюты"""
     parts = callback.data.split("_")
     currency_type = parts[2]
     currency_code = parts[3]
     
     try:
         user_id = callback.from_user.id
-        db.add_selected_currency(user_id, currency_type, currency_code)
+        selected = db.get_selected_currencies(user_id)
+        selected_codes = selected['fiat'] if currency_type == 'fiat' else selected['crypto']
+        
+        # Переключаем состояние валюты
+        if currency_code in selected_codes:
+            # Убираем валюту
+            db.remove_selected_currency(user_id, currency_type, currency_code)
+            action = "removed"
+        else:
+            # Добавляем валюту
+            db.add_selected_currency(user_id, currency_type, currency_code)
+            action = "added"
         
         # Получаем название валюты
         currencies = FIAT_CURRENCIES if currency_type == "fiat" else CRYPTO_CURRENCIES
         currency_name = currencies.get(currency_code, currency_code)
         
-        await callback.answer(_t('added_currency', db.get_language(callback.from_user.id), name=currency_name))
-        
-        # Возвращаемся к выбору букв
+        # Показываем сообщение о действии
         lang = db.get_language(callback.from_user.id)
-        text = _t('fiat_menu', lang) if currency_type == "fiat" else _t('crypto_menu', lang)
-        selected = db.get_selected_currencies(user_id)
-        selected_codes = selected['fiat'] if currency_type == 'fiat' else selected['crypto']
-        await callback.message.edit_text(text, reply_markup=get_letter_keyboard(currency_type, lang))
+        if action == "added":
+            await callback.answer(_t('added_currency', lang, name=currency_name))
+        else:
+            await callback.answer(_t('removed_currency', lang, name=currency_name))
+        
+        
+        # Обновляем текущую страницу с буквой
+        # Находим букву из текущего текста
+        current_text = callback.message.text
+        if "букву" in current_text or "letter" in current_text:
+            # Извлекаем букву из текста
+            import re
+            letter_match = re.search(r"['\"]([A-ZА-Я])['\"]", current_text)
+            if letter_match:
+                letter = letter_match.group(1)
+                # Обновляем список выбранных валют
+                selected = db.get_selected_currencies(user_id)
+                selected_codes = selected['fiat'] if currency_type == 'fiat' else selected['crypto']
+                lang = db.get_language(callback.from_user.id)
+                # Обновляем и текст, и клавиатуру одновременно
+                await callback.message.edit_text(
+                    _t('choose_by_letter', lang, letter=letter),
+                    reply_markup=get_currencies_by_letter_keyboard(currency_type, letter, selected_codes, lang)
+                )
     except Exception as e:
-        await callback.answer("Ошибка при добавлении валюты")
+        await callback.answer("Ошибка при изменении валюты")
 
 @dp.callback_query(lambda c: c.data.startswith("back_to_letters_"))
 async def process_back_to_letters_callback(callback: CallbackQuery):
@@ -417,7 +463,7 @@ async def process_back_callback(callback: CallbackQuery):
 		# Try to get language again, but fallback to default if it fails
 		try:
 			fallback_lang = db.get_language(callback.from_user.id)
-		except:
+		except Exception:
 			fallback_lang = 'en'  # Default fallback
 		await callback.answer(_t('already_here', fallback_lang))
 
@@ -580,8 +626,9 @@ async def process_currency_conversion(text: str, user_id: int, use_w2n: bool = F
     all_target_currencies = selected_currencies['fiat'] + selected_currencies['crypto']
     
     if not all_target_currencies:
-        # Если нет выбранных валют, используем все доступные
-        all_target_currencies = list(FIAT_CURRENCIES.keys()) + list(CRYPTO_CURRENCIES.keys())
+        # Если нет выбранных валют, просим настроить
+        lang = db.get_language(user_id)
+        return _t('no_currencies_selected', lang)
     
     # Убираем исходную валюту из списка целей
     if from_currency in all_target_currencies:

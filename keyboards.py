@@ -1,6 +1,5 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
-from config import FIAT_CURRENCIES, CRYPTO_CURRENCIES, PROCESSING_MODES
-import string
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from config import FIAT_CURRENCIES, CRYPTO_CURRENCIES
 from typing import List
 
 def get_main_menu_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
@@ -71,7 +70,7 @@ def get_currencies_by_letter_keyboard(currency_type: str, letter: str, selected_
 	buttons = []
 	current_row = []
 	for code, name in filtered_currencies:
-		check = "✅ " if code in selected_codes else ""
+		check = "✅ " if code in selected_codes else "❌ "
 		current_row.append(InlineKeyboardButton(
 			text=f"{check}{name}",
 			callback_data=f"select_currency_{currency_type}_{code}"

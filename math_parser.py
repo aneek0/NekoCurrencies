@@ -1,7 +1,6 @@
 import re
 import ast
-from typing import Optional, Tuple, Union
-from decimal import Decimal, InvalidOperation
+from typing import Optional, Tuple
 
 class MathParser:
     """Парсер математических выражений с поддержкой валют"""
@@ -136,8 +135,11 @@ class MathParser:
             if not self._is_safe_expression(clean_expr):
                 return None
             
-            # Вычисляем выражение
-            result = eval(clean_expr, {"__builtins__": {}}, {})
+            # Вычисляем выражение безопасно
+            try:
+                result = ast.literal_eval(clean_expr)
+            except (ValueError, SyntaxError):
+                return None
             
             # Проверяем, что результат - число
             if isinstance(result, (int, float)):

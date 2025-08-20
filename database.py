@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List
 from datetime import datetime
 
 class UserDatabase:
