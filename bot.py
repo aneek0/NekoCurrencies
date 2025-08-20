@@ -332,16 +332,13 @@ async def process_set_mode_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "back_to_settings")
 async def process_back_to_settings_callback(callback: CallbackQuery):
-    """Обработчик кнопки назад к настройкам"""
-    user_id = callback.from_user.id
-    current_mode = db.get_processing_mode(user_id)
-    
-    try:
-        lang = db.get_language(callback.from_user.id)
-        settings_text = _t('settings', lang)
-        await callback.message.edit_text(settings_text, reply_markup=get_settings_keyboard(lang))
-    except Exception as e:
-        await callback.answer(_t('already_here', db.get_language(callback.from_user.id)))
+	"""Обработчик кнопки назад к настройкам"""
+	try:
+		lang = db.get_language(callback.from_user.id)
+		settings_text = _t('settings', lang)
+		await callback.message.edit_text(settings_text, reply_markup=get_settings_keyboard(lang))
+	except Exception:
+		await callback.answer(_t('already_here', db.get_language(callback.from_user.id)))
 
 @dp.callback_query(lambda c: c.data == "back_to_main")
 async def process_back_to_main_callback(callback: CallbackQuery):
@@ -350,7 +347,7 @@ async def process_back_to_main_callback(callback: CallbackQuery):
         lang = db.get_language(callback.from_user.id)
         welcome_text = _t('welcome', lang)
         await callback.message.edit_text(welcome_text, reply_markup=get_main_menu_keyboard(lang))
-    except Exception as e:
+    except Exception:
         await callback.answer(_t('already_main', db.get_language(callback.from_user.id)))
 
 @dp.callback_query(lambda c: c.data in ["fiat_currencies", "crypto_currencies"])
@@ -362,7 +359,7 @@ async def process_currency_type_callback(callback: CallbackQuery):
         lang = db.get_language(callback.from_user.id)
         text = _t('fiat_menu', lang) if currency_type == "fiat" else _t('crypto_menu', lang)
         await callback.message.edit_text(text, reply_markup=get_letter_keyboard(currency_type, lang))
-    except Exception as e:
+    except Exception:
         await callback.answer("Ошибка при загрузке меню")
 
 @dp.callback_query(lambda c: c.data.startswith("letter_"))
@@ -378,7 +375,7 @@ async def process_letter_callback(callback: CallbackQuery):
         selected_codes = selected['fiat'] if currency_type == 'fiat' else selected['crypto']
         lang = db.get_language(callback.from_user.id)
         await callback.message.edit_text(_t('choose_by_letter', lang, letter=letter), reply_markup=get_currencies_by_letter_keyboard(currency_type, letter, selected_codes, db.get_language(callback.from_user.id)))
-    except Exception as e:
+    except Exception:
         await callback.answer("Ошибка при загрузке валют")
 
 @dp.callback_query(lambda c: c.data.startswith("select_currency_"))
@@ -433,7 +430,7 @@ async def process_select_currency_callback(callback: CallbackQuery):
                     _t('choose_by_letter', lang, letter=letter),
                     reply_markup=get_currencies_by_letter_keyboard(currency_type, letter, selected_codes, lang)
                 )
-    except Exception as e:
+    except Exception:
         await callback.answer("Ошибка при изменении валюты")
 
 @dp.callback_query(lambda c: c.data.startswith("back_to_letters_"))
@@ -445,7 +442,7 @@ async def process_back_to_letters_callback(callback: CallbackQuery):
         lang = db.get_language(callback.from_user.id)
         text = _t('fiat_menu', lang) if currency_type == "fiat" else _t('crypto_menu', lang)
         await callback.message.edit_text(text, reply_markup=get_letter_keyboard(currency_type, lang))
-    except Exception as e:
+    except Exception:
         await callback.answer("Ошибка при загрузке меню")
 
 @dp.callback_query(lambda c: c.data in ["back_to_fiat", "back_to_crypto"]) 
@@ -459,7 +456,7 @@ async def process_back_callback(callback: CallbackQuery):
 		elif callback.data == "back_to_crypto":
 			text = _t('crypto_menu', lang)
 			await callback.message.edit_text(text, reply_markup=get_letter_keyboard("crypto", lang))
-	except Exception as e:
+	except Exception:
 		# Try to get language again, but fallback to default if it fails
 		try:
 			fallback_lang = db.get_language(callback.from_user.id)
