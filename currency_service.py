@@ -1,4 +1,4 @@
-import aiohttp
+import httpx
 import re
 from typing import Dict, List, Optional, Tuple
 from config import (
@@ -27,16 +27,16 @@ class CurrencyService:
         self.cache_timeout = 600  # 10 minutes (увеличиваем время кэширования)
         self.api_failures = {'currencyfreaks': 0, 'exchangerate': 0}  # Счетчик ошибок API
         self.max_failures = 3  # Максимальное количество ошибок перед переключением
-        self._session: Optional[aiohttp.ClientSession] = None
+        self._session: Optional[httpx.AsyncClient] = None
     
-    async def _get_session(self) -> aiohttp.ClientSession:
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession()
+    async def _get_session(self) -> httpx.AsyncClient:
+        if self._session is None:
+            self._session = httpx.AsyncClient()
         return self._session
     
     async def close(self):
-        if self._session and not self._session.closed:
-            await self._session.close()
+        if self._session:
+            await self._session.aclose()
 
     async def get_exchange_rates(self, base_currency: str = 'USD', api_source: str = 'auto') -> Dict:
         """Получить курсы валют с приоритетом API и умным кэшированием.
@@ -114,22 +114,22 @@ class CurrencyService:
                 'apikey': self.currencyfreaks_api_key,
                 'base': base_currency
             }
-            async with session.get(self.currencyfreaks_base_url, params=params) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data.get('rates', {})
-                elif response.status == 402:
-                    print("❌ CurrencyFreaks API Error 402: Payment Required - исчерпан лимит запросов")
-                    return None
-                elif response.status == 403:
-                    print("❌ CurrencyFreaks API Error 403: Forbidden - неверный API ключ")
-                    return None
-                elif response.status == 429:
-                    print("❌ CurrencyFreaks API Error 429: Too Many Requests - превышен лимит запросов")
-                    return None
-                else:
-                    print(f"❌ CurrencyFreaks API Error: {response.status}")
-                    return None
+            response = await session.get(self.currencyfreaks_base_url, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('rates', {})
+            elif response.status_code == 402:
+                print("❌ CurrencyFreaks API Error 402: Payment Required - исчерпан лимит запросов")
+                return None
+            elif response.status_code == 403:
+                print("❌ CurrencyFreaks API Error 403: Forbidden - неверный API ключ")
+                return None
+            elif response.status_code == 429:
+                print("❌ CurrencyFreaks API Error 429: Too Many Requests - превышен лимит запросов")
+                return None
+            else:
+                print(f"❌ CurrencyFreaks API Error: {response.status_code}")
+                return None
         except Exception as e:
             print(f"❌ CurrencyFreaks API Exception: {e}")
             return None
@@ -139,22 +139,22 @@ class CurrencyService:
         try:
             session = await self._get_session()
             url = f"{self.exchangerate_base_url}/{self.exchangerate_api_key}/latest/{base_currency}"
-            async with session.get(url) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data.get('conversion_rates', {})
-                elif response.status == 402:
-                    print("❌ ExchangeRate-API Error 402: Payment Required - исчерпан лимит запросов")
-                    return None
-                elif response.status == 403:
-                    print("❌ ExchangeRate-API Error 403: Forbidden - неверный API ключ")
-                    return None
-                elif response.status == 429:
-                    print("❌ ExchangeRate-API Error 429: Too Many Requests - превышен лимит запросов")
-                    return None
-                else:
-                    print(f"❌ ExchangeRate-API Error: {response.status}")
-                    return None
+            response = await session.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('conversion_rates', {})
+            elif response.status_code == 402:
+                print("❌ ExchangeRate-API Error 402: Payment Required - исчерпан лимит запросов")
+                return None
+            elif response.status_code == 403:
+                print("❌ ExchangeRate-API Error 403: Forbidden - неверный API ключ")
+                return None
+            elif response.status_code == 429:
+                print("❌ ExchangeRate-API Error 429: Too Many Requests - превышен лимит запросов")
+                return None
+            else:
+                print(f"❌ ExchangeRate-API Error: {response.status_code}")
+                return None
         except Exception as e:
             print(f"❌ ExchangeRate-API Exception: {e}")
             return None
