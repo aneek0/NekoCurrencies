@@ -8,6 +8,12 @@
 
 A Telegram bot that automatically recognizes currency amounts in text messages and converts them to other currencies using real-time exchange rates.
 
+## 🆕 Recent Updates
+
+- **HTTP Client Migration**: Upgraded from `aiohttp` to `httpx` for better performance and HTTP/2 support
+- **Performance Improvements**: Faster API requests and better resource management
+- **Modern Dependencies**: Using the latest and most efficient Python libraries
+
 ## 🌟 Features
 
 - **Smart Text Recognition**: Automatically detects numbers and currencies in messages
@@ -186,8 +192,9 @@ Output: ₽300
 ## 🏗️ Architecture
 
 - **Bot Framework**: aiogram 3.x
+- **HTTP Client**: httpx (modern, fast, HTTP/2 support)
 - **Currency Service**: Multi-API with smart fallbacks
-- **Database**: SQLite for user preferences
+- **Database**: JSON file storage for user preferences
 - **Caching**: Intelligent rate caching (10 minutes)
 - **Error Handling**: Graceful degradation on API failures
 
