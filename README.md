@@ -9,6 +9,7 @@ A Telegram bot that automatically recognizes currency amounts in text messages a
 ## 🆕 Recent Updates
 
 - **HTTP Client Migration**: Upgraded from `aiohttp` to `httpx` for better performance and HTTP/2 support
+- **New API Source**: Added NBRB (Belarus National Bank) API for official BYN rates (backup source)
 - **Performance Improvements**: Faster API requests and better resource management
 - **Modern Dependencies**: Using the latest and most efficient Python libraries
 
@@ -93,6 +94,7 @@ python bot.py
 - **Auto**: Automatically selects best available API
 - **CurrencyFreaks**: Primary API (recommended)
 - **ExchangeRate-API**: Fallback API
+- **NBRB**: Belarus National Bank API (official rates)
 
 ### Appearance
 - Toggle currency flags, codes, and symbols
@@ -224,7 +226,12 @@ Output: ₽300
    - Backup source
    - 170+ currencies
 
-3. **Fallback Rates** (Offline)
+3. **NBRB API** (Belarus National Bank)
+   - Official Belarus rates
+   - Free access
+   - Backup source (may be slow)
+
+4. **Fallback Rates** (Offline)
    - Approximate rates
    - Works without internet
 

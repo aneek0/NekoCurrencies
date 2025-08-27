@@ -477,7 +477,7 @@ async def process_set_api_callback(callback: CallbackQuery):
 	"""Обработчик установки источника курсов"""
 	user_id = callback.from_user.id
 	source = callback.data.split("set_api_")[1]
-	if source not in ["auto", "currencyfreaks", "exchangerate"]:
+	if source not in ["auto", "currencyfreaks", "exchangerate", "nbrb"]:
 		await callback.answer("Некорректный источник")
 		return
 	db.set_api_source(user_id, source)
@@ -567,6 +567,11 @@ async def process_message(message: Message):
     """Обработчик всех сообщений"""
     try:
         user_id = message.from_user.id
+        
+        # Проверяем, что сообщение содержит текст
+        if not message.text:
+            return
+            
         text = message.text.strip()
         
         if not text:
@@ -678,7 +683,12 @@ async def process_currency_conversion(text: str, user_id: int, use_w2n: bool = F
 @dp.inline_query()
 async def inline_query_handler(inline_query: InlineQuery):
     """Обработчик инлайн запросов"""
-    query = inline_query.query.strip()
+    
+    # Проверяем, что запрос содержит текст
+    if not inline_query.query:
+        query = ""
+    else:
+        query = inline_query.query.strip()
     
     if not query:
         # Если запрос пустой, показываем подсказку
@@ -833,10 +843,19 @@ async def main():
 		types.BotCommand(command="help", description="📖 Справка и помощь"),
 		types.BotCommand(command="settings", description="⚙️ Настройки бота")
 	])
+	
 	try:
-		await dp.start_polling(bot)
+		print("🔄 Запускаем polling...")
+		await dp.start_polling(bot, skip_updates=True)
+	except KeyboardInterrupt:
+		print("\n⏹️ Бот остановлен пользователем")
+	except Exception as e:
+		print(f"❌ Критическая ошибка в main: {e}")
+		print(f"🔍 Тип ошибки: {type(e).__name__}")
 	finally:
+		print("🧹 Закрываем соединения...")
 		await currency_service.close()
+		print("✅ Бот завершен")
 
 if __name__ == "__main__":
     asyncio.run(main()) 
