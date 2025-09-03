@@ -3,7 +3,7 @@
     "check_interval": 3600,
     "auto_update": true,
     "notify_users": true,
-    "admin_ids": [123456789],
+    "admin_ids": [1286936026],
     "backup_before_update": true,
     "max_retries": 3,
     "retry_delay": 300

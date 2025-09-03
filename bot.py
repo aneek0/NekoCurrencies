@@ -365,7 +365,7 @@ async def cmd_update(message: Message):
     last_activity_time = time.time()
     
     # Проверяем, является ли пользователь администратором
-    admin_ids = [123456789]  # Замените на ваш ID
+    admin_ids = [1286936026]  # Замените на ваш ID
     
     if message.from_user.id not in admin_ids:
         lang = db.get_language(message.from_user.id)
