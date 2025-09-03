@@ -1,0 +1,9 @@
+{
+  "bot.py": "a8ee808a3f85f4c8ad15328dea2828bd",
+  "currency_service.py": "5ba589f815c35621f3be67718d11c280",
+  "database.py": "b2f0701a4b66b867af96d46ef35798cb",
+  "keyboards.py": "9d5f893a4c20b95b059580287ef88f0c",
+  "config.py": "2f0767eee055fa9e11d926c8cfd45bad",
+  "math_parser.py": "0506f285390b829091af240a6bf400e6",
+  "requirements.txt": "d0b5955ec4bb68011ff57c3aca2c81e1"
+}
