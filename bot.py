@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineQuery, InlineQueryResultArticle, InputTextMessageContent
@@ -15,10 +16,11 @@ from keyboards import (
 )
 from database import UserDatabase
 from typing import Dict
-
-# Автоматическая оптимизация производительности
+import aiohttp
+import signal
 import sys
 
+# Автоматическая оптимизация производительности
 if sys.platform == "win32":
     # Windows: используем ProactorEventLoop для лучшей производительности
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
@@ -30,16 +32,61 @@ else:
     except ImportError:
         pass  # Используем стандартный event loop
 
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
+# Настройка логирования с более детальной информацией
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('bot.log', encoding='utf-8')
+    ]
+)
+logger = logging.getLogger(__name__)
 
-# Инициализация бота и диспетчера
+# Инициализация бота и диспетчера с улучшенными настройками
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # Инициализация сервисов
 currency_service = CurrencyService()
 db = UserDatabase()
+
+# Глобальные переменные для мониторинга
+bot_start_time = time.time()
+last_activity_time = time.time()
+is_running = True
+
+# Keep-alive механизм
+async def keep_alive():
+    """Периодически отправляет запросы для поддержания соединения"""
+    global last_activity_time
+    while is_running:
+        try:
+            # Проверяем соединение с Telegram API
+            me = await bot.get_me()
+            current_time = time.time()
+            uptime = current_time - bot_start_time
+            
+            # Логируем статус каждые 5 минут
+            if int(current_time) % 300 == 0:
+                logger.info(f"🤖 Бот активен. Uptime: {uptime:.0f}s, Последняя активность: {current_time - last_activity_time:.0f}s назад")
+            
+            await asyncio.sleep(60)  # Проверка каждую минуту
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в keep-alive: {e}")
+            await asyncio.sleep(30)  # При ошибке проверяем чаще
+
+# Обработчик сигналов для graceful shutdown
+def signal_handler(signum, frame):
+    """Обработчик сигналов для корректного завершения"""
+    global is_running
+    logger.info(f"📡 Получен сигнал {signum}, завершаем работу...")
+    is_running = False
+
+# Регистрируем обработчики сигналов
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 # Локализация
 TEXTS: Dict[str, Dict[str, str]] = {
@@ -283,24 +330,36 @@ def _t(key: str, lang: str = 'ru', **kwargs) -> str:
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     """Обработчик команды /start"""
+    global last_activity_time
+    last_activity_time = time.time()
+    
     lang = db.get_language(message.from_user.id)
     await message.answer(_t('welcome', lang), reply_markup=get_main_menu_keyboard(lang))
 
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     """Обработчик команды /help"""
+    global last_activity_time
+    last_activity_time = time.time()
+    
     lang = db.get_language(message.from_user.id)
     await message.answer(_t('help', lang), reply_markup=get_help_keyboard(lang))
 
 @dp.message(Command("settings"))
 async def cmd_settings(message: Message):
     """Обработчик команды /settings"""
+    global last_activity_time
+    last_activity_time = time.time()
+    
     lang = db.get_language(message.from_user.id)
     await message.answer(_t('settings', lang), reply_markup=get_settings_keyboard(lang))
 
 @dp.callback_query(lambda c: c.data == "settings")
 async def process_settings_callback(callback: CallbackQuery):
     """Обработчик кнопки настроек"""
+    global last_activity_time
+    last_activity_time = time.time()
+    
     lang = db.get_language(callback.from_user.id)
     await callback.message.edit_text(_t('settings', lang), reply_markup=get_settings_keyboard(lang))
 
@@ -565,6 +624,9 @@ async def process_toggle_appearance(callback: CallbackQuery):
 @dp.message()
 async def process_message(message: Message):
     """Обработчик всех сообщений"""
+    global last_activity_time
+    last_activity_time = time.time()
+    
     try:
         user_id = message.from_user.id
         
@@ -596,7 +658,7 @@ async def process_message(message: Message):
         if result:
             await message.answer(result)
     except Exception as e:
-        print(f"Error processing message: {e}")
+        logger.error(f"Error processing message: {e}")
         await message.answer(_t('error_processing', db.get_language(message.from_user.id)))
 
 async def process_currency_conversion(text: str, user_id: int, use_w2n: bool = False) -> str:
@@ -683,6 +745,8 @@ async def process_currency_conversion(text: str, user_id: int, use_w2n: bool = F
 @dp.inline_query()
 async def inline_query_handler(inline_query: InlineQuery):
     """Обработчик инлайн запросов"""
+    global last_activity_time
+    last_activity_time = time.time()
     
     # Проверяем, что запрос содержит текст
     if not inline_query.query:
@@ -834,28 +898,71 @@ async def process_back_to_currency_selection(callback: CallbackQuery):
 	await callback.message.edit_text(_t('choose_type', lang), reply_markup=get_currency_selection_keyboard(lang))
 
 async def main():
-	"""Главная функция"""
-	print("Бот запущен...")
+	"""Главная функция с улучшенными настройками"""
+	global last_activity_time
+	
+	logger.info("🚀 Запуск бота конвертации валют...")
 	
 	# Устанавливаем команды бота
-	await bot.set_my_commands([
-		types.BotCommand(command="start", description="🚀 Запустить бота"),
-		types.BotCommand(command="help", description="📖 Справка и помощь"),
-		types.BotCommand(command="settings", description="⚙️ Настройки бота")
-	])
+	try:
+		await bot.set_my_commands([
+			types.BotCommand(command="start", description="🚀 Запустить бота"),
+			types.BotCommand(command="help", description="📖 Справка и помощь"),
+			types.BotCommand(command="settings", description="⚙️ Настройки бота")
+		])
+		logger.info("✅ Команды бота установлены")
+	except Exception as e:
+		logger.error(f"❌ Ошибка установки команд: {e}")
+	
+	# Запускаем keep-alive в фоне
+	keep_alive_task = asyncio.create_task(keep_alive())
 	
 	try:
-		print("🔄 Запускаем polling...")
-		await dp.start_polling(bot, skip_updates=True)
+		logger.info("🔄 Запускаем polling с улучшенными настройками...")
+		
+		# Улучшенные настройки polling для предотвращения "засыпания"
+		await dp.start_polling(
+			bot,
+			skip_updates=True,
+			allowed_updates=["message", "callback_query", "inline_query"],
+			drop_pending_updates=True,
+			close_bot_session=False,  # Не закрываем сессию при остановке
+			timeout=30,  # Увеличиваем timeout
+			limit=100,   # Увеличиваем лимит обновлений
+			backoff_factor=1.5,  # Экспоненциальная задержка при ошибках
+			request_timeout=30.0  # Timeout для запросов
+		)
+		
 	except KeyboardInterrupt:
-		print("\n⏹️ Бот остановлен пользователем")
+		logger.info("⏹️ Бот остановлен пользователем")
 	except Exception as e:
-		print(f"❌ Критическая ошибка в main: {e}")
-		print(f"🔍 Тип ошибки: {type(e).__name__}")
+		logger.error(f"❌ Критическая ошибка в main: {e}")
+		logger.error(f"🔍 Тип ошибки: {type(e).__name__}")
+		import traceback
+		logger.error(f"📋 Traceback: {traceback.format_exc()}")
 	finally:
-		print("🧹 Закрываем соединения...")
-		await currency_service.close()
-		print("✅ Бот завершен")
+		logger.info("🧹 Закрываем соединения...")
+		
+		# Отменяем keep-alive задачу
+		keep_alive_task.cancel()
+		try:
+			await keep_alive_task
+		except asyncio.CancelledError:
+			pass
+		
+		# Закрываем сервисы
+		try:
+			await currency_service.close()
+		except Exception as e:
+			logger.error(f"❌ Ошибка закрытия currency_service: {e}")
+		
+		# Закрываем соединение с ботом
+		try:
+			await bot.session.close()
+		except Exception as e:
+			logger.error(f"❌ Ошибка закрытия bot session: {e}")
+		
+		logger.info("✅ Бот завершен корректно")
 
 if __name__ == "__main__":
     asyncio.run(main()) 

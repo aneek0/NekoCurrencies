@@ -10,6 +10,10 @@ A Telegram bot that automatically recognizes currency amounts in text messages a
 
 ## 🆕 Recent Updates
 
+- **🔄 Keep-Alive System**: Added automatic connection monitoring to prevent bot "sleeping"
+- **📊 Bot Monitoring**: New monitoring system with automatic restart capabilities
+- **🚀 Performance Optimizations**: Enhanced polling settings and connection management
+- **📝 Improved Logging**: Detailed logging with file output for better debugging
 - **HTTP Client Migration**: Upgraded from `aiohttp` to `httpx` for better performance and HTTP/2 support
 - **New API Source**: Added NBRB (Belarus National Bank) API for official BYN rates (backup source)
 - **Performance Improvements**: Faster API requests and better resource management
@@ -76,7 +80,14 @@ cp .env.example .env
 # Edit .env file with your actual values
 
 # 4. Run the bot
+# Option 1: Simple start
 python bot.py
+
+# Option 2: Start with monitoring (recommended)
+python start_bot.py
+
+# Option 3: Direct monitoring
+python bot_monitor.py
 ```
 
 ## 📱 Commands
@@ -103,11 +114,15 @@ python bot.py
 - Compact mode for cryptocurrencies
 - Debug mode shows data sources
 
-## ⚡ Performance
+## ⚡ Performance & Reliability
 
 The bot automatically applies performance optimizations:
 - **Unix/Linux/macOS**: Uses `uvloop` for faster event loop
 - **Windows**: Uses `WindowsProactorEventLoopPolicy` for better performance
+- **Keep-Alive**: Automatic connection monitoring prevents bot "sleeping"
+- **Auto-Restart**: Monitoring system automatically restarts bot if needed
+- **Health Checks**: Regular monitoring of memory and CPU usage
+- **Graceful Shutdown**: Proper cleanup of resources on exit
 
 ## 💾 Data Storage
 
@@ -257,6 +272,52 @@ Output: ₽300
 3. Make your changes
 4. Test thoroughly
 5. Submit a pull request
+
+## 🔍 Monitoring & Maintenance
+
+### Bot Monitoring System
+
+The bot includes a comprehensive monitoring system to ensure reliable operation:
+
+#### Features
+- **🔄 Keep-Alive**: Prevents bot from "sleeping" during inactivity
+- **📊 Health Checks**: Monitors memory and CPU usage
+- **🔄 Auto-Restart**: Automatically restarts bot if it stops responding
+- **📝 Detailed Logging**: Logs all activities to `bot.log` and `monitor.log`
+
+#### Usage
+
+```bash
+# Start with monitoring (recommended)
+python start_bot.py
+
+# Or run monitoring directly
+python bot_monitor.py
+```
+
+#### Monitoring Options
+1. **Simple Start**: `python bot.py` - Basic bot operation
+2. **Monitored Start**: `python start_bot.py` - Interactive startup with monitoring
+3. **Direct Monitoring**: `python bot_monitor.py` - Monitoring for already running bot
+
+#### Log Files
+- `bot.log` - Bot activity and errors
+- `monitor.log` - Monitoring system logs
+- Console output - Real-time status information
+
+#### Configuration
+The monitoring system can be configured by editing `bot_monitor.py`:
+- `max_restarts`: Maximum restart attempts (default: 10)
+- `restart_delay`: Delay between restarts (default: 5 seconds)
+- `health_check_interval`: Health check frequency (default: 30 seconds)
+
+### Troubleshooting
+
+If the bot seems unresponsive:
+1. Check `bot.log` for error messages
+2. Restart with monitoring: `python start_bot.py`
+3. Monitor system resources (memory, CPU)
+4. Check internet connection and API availability
 
 ## 📄 License
 
