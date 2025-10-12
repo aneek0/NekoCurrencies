@@ -44,7 +44,7 @@ class UpdateManager:
             # Пытаемся получить версию из git
             repo = git.Repo(search_parent_directories=True)
             return repo.head.object.hexsha[:8]
-        except:
+        except (git.InvalidGitRepositoryError, git.GitCommandError, OSError, ValueError):
             # Если git недоступен, используем timestamp
             return datetime.now().strftime("%Y%m%d_%H%M%S")
     
@@ -54,7 +54,7 @@ class UpdateManager:
             try:
                 with open(self.hashes_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            except:
+            except (json.JSONDecodeError, OSError, IOError):
                 return {}
         return {}
     
@@ -71,7 +71,7 @@ class UpdateManager:
         try:
             with open(file_path, 'rb') as f:
                 content = f.read()
-                return hashlib.md5(content).hexdigest()
+                return hashlib.sha256(content).hexdigest()
         except Exception as e:
             logger.error(f"Ошибка вычисления хеша для {file_path}: {e}")
             return ""
@@ -150,7 +150,7 @@ class UpdateManager:
             if self._calculate_file_hash('requirements.txt') != self.file_hashes.get('requirements.txt', ''):
                 logger.info("Устанавливаем новые зависимости...")
                 
-                result = subprocess.run([
+                result = subprocess.run([  # noqa: S603
                     sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'
                 ], capture_output=True, text=True)
                 

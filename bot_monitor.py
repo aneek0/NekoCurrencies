@@ -36,7 +36,8 @@ class BotMonitor:
         """Запуск бота"""
         try:
             logger.info("🚀 Запуск бота...")
-            self.process = subprocess.Popen(
+            # Используем статические строки, поэтому это безопасно
+            self.process = subprocess.Popen(  # noqa: S603
                 [sys.executable, "bot.py"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

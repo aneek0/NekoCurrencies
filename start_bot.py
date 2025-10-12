@@ -58,7 +58,7 @@ def main():
     if choice == "1":
         print("\n🚀 Запуск бота в обычном режиме...")
         try:
-            subprocess.run([sys.executable, "bot.py"], check=True)
+            subprocess.run([sys.executable, "bot.py"], check=True)  # noqa: S603
         except subprocess.CalledProcessError as e:
             print(f"❌ Ошибка запуска бота: {e}")
             return 1
@@ -69,7 +69,7 @@ def main():
     elif choice == "2":
         print("\n🚀 Запуск бота с мониторингом...")
         try:
-            subprocess.run([sys.executable, "bot_monitor.py"], check=True)
+            subprocess.run([sys.executable, "bot_monitor.py"], check=True)  # noqa: S603
         except subprocess.CalledProcessError as e:
             print(f"❌ Ошибка запуска мониторинга: {e}")
             return 1
@@ -83,7 +83,7 @@ def main():
         input("Нажмите Enter для продолжения...")
         
         try:
-            subprocess.run([sys.executable, "bot_monitor.py"], check=True)
+            subprocess.run([sys.executable, "bot_monitor.py"], check=True)  # noqa: S603
         except subprocess.CalledProcessError as e:
             print(f"❌ Ошибка запуска мониторинга: {e}")
             return 1
