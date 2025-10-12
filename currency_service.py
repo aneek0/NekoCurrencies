@@ -421,8 +421,8 @@ class CurrencyService:
             # Сначала пробуем английские числа
             try:
                 return w2n.word_to_num(clean_text)
-            except Exception:
-                # Fallback к русским числам
+            except (ValueError, TypeError, AttributeError):
+                # Fallback к русским числам - английские числа не распознаны
                 pass
             
             # Затем пробуем русские числа
