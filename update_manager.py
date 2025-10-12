@@ -154,14 +154,17 @@ class UpdateManager:
             if self._calculate_file_hash('requirements.txt') != self.file_hashes.get('requirements.txt', ''):
                 logger.info("Устанавливаем новые зависимости...")
                 
-                # Безопасное выполнение pip install через importlib
+                # Безопасное выполнение pip install с предопределенной командой
                 try:
-                    import subprocess
-                    import sys
-                    # Используем статические строки для безопасности
-                    result = subprocess.run([
-                        sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'
-                    ], capture_output=True, text=True, shell=False, check=False)
+                    # Используем предопределенную константу для безопасности
+                    result = subprocess.run(
+                        PIP_INSTALL_CMD,
+                        capture_output=True,
+                        text=True,
+                        shell=False,
+                        check=False,
+                        timeout=300  # 5 минут таймаут
+                    )
                 except Exception as e:
                     logger.error(f"Ошибка установки зависимостей: {e}")
                     return False
