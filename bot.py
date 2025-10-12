@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import time
+import argparse
+import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineQuery, InlineQueryResultArticle, InputTextMessageContent
@@ -1046,5 +1048,134 @@ async def main():
 		
 		logger.info("✅ Бот завершен корректно")
 
+def check_required_files():
+    """Проверка наличия необходимых файлов"""
+    required_files = ["config.py", "currency_service.py", "database.py", "keyboards.py"]
+    missing_files = [f for f in required_files if not os.path.exists(f)]
+    
+    if missing_files:
+        print(f"❌ Отсутствуют необходимые файлы: {', '.join(missing_files)}")
+        return False
+    
+    if not os.path.exists(".env"):
+        print("⚠️ Файл .env не найден. Убедитесь, что он создан с токеном бота.")
+        print("Пример содержимого .env:")
+        print("BOT_TOKEN=your_bot_token_here")
+        return False
+    
+    return True
+
+def show_startup_menu():
+    """Показать меню запуска"""
+    print("🤖 Запуск бота конвертации валют...")
+    print("=" * 50)
+    print("Выберите режим запуска:")
+    print("1. 🚀 Обычный режим (рекомендуется)")
+    print("2. 🔍 Режим отладки (подробные логи)")
+    print("3. ❌ Выход")
+    print("=" * 50)
+    
+    while True:
+        try:
+            choice = input("Введите номер (1-3): ").strip()
+            if choice in ["1", "2", "3"]:
+                return choice
+            else:
+                print("❌ Неверный выбор. Введите 1, 2 или 3.")
+        except KeyboardInterrupt:
+            print("\n❌ Отменено пользователем")
+            return "3"
+
+def setup_logging(debug_mode=False):
+    """Настройка логирования в зависимости от режима"""
+    level = logging.DEBUG if debug_mode else logging.INFO
+    format_str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    
+    handlers = [
+        logging.StreamHandler(),
+        logging.FileHandler('bot.log', encoding='utf-8')
+    ]
+    
+    if debug_mode:
+        handlers.append(logging.FileHandler('bot_debug.log', encoding='utf-8'))
+    
+    logging.basicConfig(
+        level=level,
+        format=format_str,
+        handlers=handlers
+    )
+    
+    logger = logging.getLogger(__name__)
+    if debug_mode:
+        logger.info("🔍 Режим отладки включен")
+    return logger
+
+async def run_bot_with_monitoring():
+    """Запуск бота с мониторингом (автоперезапуск при сбоях)"""
+    restart_count = 0
+    max_restarts = 10
+    
+    while restart_count < max_restarts:
+        try:
+            logger.info(f"🚀 Запуск бота (попытка {restart_count + 1})...")
+            await main()
+        except Exception as e:
+            restart_count += 1
+            logger.error(f"❌ Бот упал (попытка {restart_count}): {e}")
+            
+            if restart_count < max_restarts:
+                wait_time = min(30, restart_count * 5)  # Экспоненциальная задержка
+                logger.info(f"⏳ Перезапуск через {wait_time} секунд...")
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"❌ Достигнуто максимальное количество перезапусков ({max_restarts})")
+                break
+        except KeyboardInterrupt:
+            logger.info("⏹️ Остановка по запросу пользователя")
+            break
+
+def main_cli():
+    """Главная функция командной строки"""
+    parser = argparse.ArgumentParser(description="Telegram бот конвертации валют")
+    parser.add_argument("--monitor", "-m", action="store_true", 
+                       help="Запуск с мониторингом (автоперезапуск)")
+    parser.add_argument("--debug", "-d", action="store_true", 
+                       help="Режим отладки")
+    parser.add_argument("--menu", action="store_true", 
+                       help="Показать интерактивное меню")
+    
+    args = parser.parse_args()
+    
+    # Проверяем необходимые файлы
+    if not check_required_files():
+        return 1
+    
+    # Настраиваем логирование
+    setup_logging(args.debug)
+    
+    if args.menu:
+        # Интерактивное меню
+        choice = show_startup_menu()
+        if choice == "3":
+            return 0
+        elif choice == "2":
+            setup_logging(debug_mode=True)
+    
+    try:
+        if args.monitor or (args.menu and choice == "1"):
+            # Запуск с мониторингом
+            asyncio.run(run_bot_with_monitoring())
+        else:
+            # Обычный запуск
+            asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n⏹️ Бот остановлен")
+        return 0
+    except Exception as e:
+        print(f"❌ Критическая ошибка: {e}")
+        return 1
+    
+    return 0
+
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    sys.exit(main_cli()) 
