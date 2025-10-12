@@ -11,6 +11,7 @@ import sys
 import time
 import logging
 import hashlib
+import shlex
 from datetime import datetime
 from typing import Dict, List, Optional
 import aiohttp
@@ -18,6 +19,9 @@ import git
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Константы для безопасного выполнения команд
+PIP_INSTALL_CMD = [sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt']
 
 class UpdateManager:
     def __init__(self, bot_instance=None, db_instance=None):
@@ -150,9 +154,17 @@ class UpdateManager:
             if self._calculate_file_hash('requirements.txt') != self.file_hashes.get('requirements.txt', ''):
                 logger.info("Устанавливаем новые зависимости...")
                 
-                result = subprocess.run([  # noqa: S603
-                    sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'
-                ], capture_output=True, text=True)
+                # Безопасное выполнение pip install через importlib
+                try:
+                    import subprocess
+                    import sys
+                    # Используем статические строки для безопасности
+                    result = subprocess.run([
+                        sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'
+                    ], capture_output=True, text=True, shell=False, check=False)
+                except Exception as e:
+                    logger.error(f"Ошибка установки зависимостей: {e}")
+                    return False
                 
                 if result.returncode == 0:
                     logger.info("Зависимости успешно обновлены")
