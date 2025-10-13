@@ -76,7 +76,7 @@ class UserDatabase:
         return user.get('processing_mode', 'standard')
     
     def set_api_source(self, user_id: int, source: str):
-        """Установить предпочитаемый источник курсов: auto|currencyfreaks|exchangerate"""
+        """Установить предпочитаемый источник курсов: auto|currencyfreaks|exchangerate|nbrb"""
         self.update_user(user_id, api_source=source)
     
     def get_api_source(self, user_id: int) -> str:

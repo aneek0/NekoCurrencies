@@ -1,0 +1,59 @@
+{
+  "update_settings": {
+    "check_interval": 3600,
+    "auto_update": true,
+    "notify_users": true,
+    "admin_ids": [1286936026],
+    "backup_before_update": true,
+    "max_retries": 3,
+    "retry_delay": 300
+  },
+  "tracked_files": [
+    "bot.py",
+    "currency_service.py", 
+    "database.py",
+    "keyboards.py",
+    "config.py",
+    "math_parser.py",
+    "requirements.txt",
+    "update_manager.py"
+  ],
+  "excluded_files": [
+    "*.log",
+    "*.json",
+    "__pycache__/*",
+    ".git/*",
+    "*.pyc"
+  ],
+  "notifications": {
+    "ru": {
+      "update_started": "🔄 Начинаем обновление бота...",
+      "update_success": "✅ Бот успешно обновлен!",
+      "update_failed": "❌ Ошибка при обновлении",
+      "no_updates": "📦 Обновлений не найдено",
+      "admin_only": "❌ Только администраторы могут выполнять эту команду"
+    },
+    "en": {
+      "update_started": "🔄 Starting bot update...",
+      "update_success": "✅ Bot updated successfully!",
+      "update_failed": "❌ Update failed",
+      "no_updates": "📦 No updates found",
+      "admin_only": "❌ Only administrators can execute this command"
+    }
+  },
+  "git_settings": {
+    "remote_name": "origin",
+    "branch": "main",
+    "fetch_before_check": true,
+    "stash_changes": true
+  },
+  "backup_settings": {
+    "enabled": true,
+    "backup_dir": "backups",
+    "max_backups": 5,
+    "include_files": [
+      "users.json",
+      "file_hashes.json"
+    ]
+  }
+} 

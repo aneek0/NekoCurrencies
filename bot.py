@@ -1,9 +1,11 @@
 import asyncio
 import logging
+import time
+import argparse
+import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineQuery, InlineQueryResultArticle, InputTextMessageContent
-import re
 from config import BOT_TOKEN, FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES
 from currency_service import CurrencyService
 from keyboards import (
@@ -14,32 +16,80 @@ from keyboards import (
     get_language_keyboard, get_appearance_keyboard
 )
 from database import UserDatabase
+from update_manager import UpdateManager, check_restart_after_update
 from typing import Dict
-
-# Автоматическая оптимизация производительности
+import signal
 import sys
 
+# Автоматическая оптимизация производительности
 if sys.platform == "win32":
     # Windows: используем ProactorEventLoop для лучшей производительности
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 else:
     # Unix: пытаемся использовать uvloop
     try:
-        import uvloop
+        import uvloop  # pyright: ignore[reportMissingImports]
         uvloop.install()
     except ImportError:
         pass  # Используем стандартный event loop
 
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
+# Настройка логирования с более детальной информацией
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('bot.log', encoding='utf-8')
+    ]
+)
+logger = logging.getLogger(__name__)
 
-# Инициализация бота и диспетчера
+# Инициализация бота и диспетчера с улучшенными настройками
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # Инициализация сервисов
 currency_service = CurrencyService()
 db = UserDatabase()
+
+# Глобальные переменные для мониторинга
+bot_start_time = time.time()
+last_activity_time = time.time()
+is_running = True
+
+# Инициализация менеджера обновлений (будет создан после инициализации бота)
+update_manager = None
+
+# Keep-alive механизм
+async def keep_alive():
+    """Периодически отправляет запросы для поддержания соединения"""
+    while is_running:
+        try:
+            # Проверяем соединение с Telegram API
+            me = await bot.get_me()
+            current_time = time.time()
+            uptime = current_time - bot_start_time
+            
+            # Логируем статус каждые 5 минут
+            if int(current_time) % 300 == 0:
+                logger.info(f"🤖 Бот активен. Uptime: {uptime:.0f}s, Последняя активность: {current_time - last_activity_time:.0f}s назад")
+            
+            await asyncio.sleep(60)  # Проверка каждую минуту
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в keep-alive: {e}")
+            await asyncio.sleep(30)  # При ошибке проверяем чаще
+
+# Обработчик сигналов для graceful shutdown
+def signal_handler(signum, frame):
+    """Обработчик сигналов для корректного завершения"""
+    global is_running
+    logger.info(f"📡 Получен сигнал {signum}, завершаем работу...")
+    is_running = False
+
+# Регистрируем обработчики сигналов
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 # Локализация
 TEXTS: Dict[str, Dict[str, str]] = {
@@ -283,24 +333,93 @@ def _t(key: str, lang: str = 'ru', **kwargs) -> str:
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     """Обработчик команды /start"""
+    global last_activity_time
+    last_activity_time = time.time()
+    
     lang = db.get_language(message.from_user.id)
     await message.answer(_t('welcome', lang), reply_markup=get_main_menu_keyboard(lang))
 
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     """Обработчик команды /help"""
+    global last_activity_time
+    last_activity_time = time.time()
+    
     lang = db.get_language(message.from_user.id)
     await message.answer(_t('help', lang), reply_markup=get_help_keyboard(lang))
 
 @dp.message(Command("settings"))
 async def cmd_settings(message: Message):
     """Обработчик команды /settings"""
+    global last_activity_time
+    last_activity_time = time.time()
+    
     lang = db.get_language(message.from_user.id)
     await message.answer(_t('settings', lang), reply_markup=get_settings_keyboard(lang))
+
+@dp.message(Command("update"))
+async def cmd_update(message: Message):
+    """Обработчик команды /update - ручное обновление (только для админов)"""
+    global last_activity_time, update_manager
+    last_activity_time = time.time()
+    
+    # Проверяем, является ли пользователь администратором
+    admin_ids = [1286936026]  # Замените на ваш ID
+    
+    if message.from_user.id not in admin_ids:
+        lang = db.get_language(message.from_user.id)
+        await message.answer("❌ У вас нет прав для выполнения этой команды.")
+        return
+    
+    if not update_manager:
+        await message.answer("❌ Система обновлений недоступна.")
+        return
+    
+    try:
+        await message.answer("🔄 Начинаем ручное обновление...")
+        
+        # Выполняем обновление
+        success = await update_manager.perform_update()
+        
+        if success:
+            await message.answer("✅ Обновление успешно запущено!")
+        else:
+            await message.answer("❌ Ошибка при обновлении. Проверьте логи.")
+            
+    except Exception as e:
+        logger.error(f"Ошибка ручного обновления: {e}")
+        await message.answer(f"❌ Ошибка: {e}")
+
+@dp.message(Command("version"))
+async def cmd_version(message: Message):
+    """Обработчик команды /version - показать версию бота"""
+    global last_activity_time, update_manager
+    last_activity_time = time.time()
+    
+    if update_manager:
+        info = update_manager.get_update_info()
+        version = info.get('current_version', 'Unknown')
+        last_check = info.get('last_check', 0)
+        
+        if last_check > 0:
+            last_check_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_check))
+        else:
+            last_check_time = "Никогда"
+        
+        response = f"🤖 **Версия бота:** `{version}`\n"
+        response += f"📅 **Последняя проверка обновлений:** {last_check_time}\n"
+        response += f"🔄 **Статус обновлений:** {'Обновляется' if info.get('is_updating') else 'Активен'}"
+        
+        await message.answer(response, parse_mode="Markdown")
+    else:
+        await message.answer("❌ Информация о версии недоступна.")
 
 @dp.callback_query(lambda c: c.data == "settings")
 async def process_settings_callback(callback: CallbackQuery):
     """Обработчик кнопки настроек"""
+    global last_activity_time
+    last_activity_time = time.time()
+    
     lang = db.get_language(callback.from_user.id)
     await callback.message.edit_text(_t('settings', lang), reply_markup=get_settings_keyboard(lang))
 
@@ -477,7 +596,7 @@ async def process_set_api_callback(callback: CallbackQuery):
 	"""Обработчик установки источника курсов"""
 	user_id = callback.from_user.id
 	source = callback.data.split("set_api_")[1]
-	if source not in ["auto", "currencyfreaks", "exchangerate"]:
+	if source not in ["auto", "currencyfreaks", "exchangerate", "nbrb"]:
 		await callback.answer("Некорректный источник")
 		return
 	db.set_api_source(user_id, source)
@@ -565,8 +684,16 @@ async def process_toggle_appearance(callback: CallbackQuery):
 @dp.message()
 async def process_message(message: Message):
     """Обработчик всех сообщений"""
+    global last_activity_time
+    last_activity_time = time.time()
+    
     try:
         user_id = message.from_user.id
+        
+        # Проверяем, что сообщение содержит текст
+        if not message.text:
+            return
+            
         text = message.text.strip()
         
         if not text:
@@ -591,7 +718,7 @@ async def process_message(message: Message):
         if result:
             await message.answer(result)
     except Exception as e:
-        print(f"Error processing message: {e}")
+        logger.error(f"Error processing message: {e}")
         await message.answer(_t('error_processing', db.get_language(message.from_user.id)))
 
 async def process_currency_conversion(text: str, user_id: int, use_w2n: bool = False) -> str:
@@ -678,7 +805,14 @@ async def process_currency_conversion(text: str, user_id: int, use_w2n: bool = F
 @dp.inline_query()
 async def inline_query_handler(inline_query: InlineQuery):
     """Обработчик инлайн запросов"""
-    query = inline_query.query.strip()
+    global last_activity_time
+    last_activity_time = time.time()
+    
+    # Проверяем, что запрос содержит текст
+    if not inline_query.query:
+        query = ""
+    else:
+        query = inline_query.query.strip()
     
     if not query:
         # Если запрос пустой, показываем подсказку
@@ -824,19 +958,221 @@ async def process_back_to_currency_selection(callback: CallbackQuery):
 	await callback.message.edit_text(_t('choose_type', lang), reply_markup=get_currency_selection_keyboard(lang))
 
 async def main():
-	"""Главная функция"""
-	print("Бот запущен...")
+	"""Главная функция с улучшенными настройками"""
+	global last_activity_time, update_manager
+	
+	logger.info("🚀 Запуск бота конвертации валют...")
+	
+	# Проверяем, был ли бот перезапущен после обновления
+	restart_info = check_restart_after_update()
+	if restart_info:
+		logger.info(f"🔄 Бот перезапущен после обновления: {restart_info.get('version', 'Unknown')}")
+	
+	# Инициализируем менеджер обновлений
+	update_manager = UpdateManager(bot, db)
+	logger.info(f"📦 Менеджер обновлений инициализирован. Версия: {update_manager.current_version}")
 	
 	# Устанавливаем команды бота
-	await bot.set_my_commands([
-		types.BotCommand(command="start", description="🚀 Запустить бота"),
-		types.BotCommand(command="help", description="📖 Справка и помощь"),
-		types.BotCommand(command="settings", description="⚙️ Настройки бота")
-	])
 	try:
-		await dp.start_polling(bot)
+		await bot.set_my_commands([
+			types.BotCommand(command="start", description="🚀 Запустить бота"),
+			types.BotCommand(command="help", description="📖 Справка и помощь"),
+			types.BotCommand(command="settings", description="⚙️ Настройки бота"),
+			types.BotCommand(command="version", description="📋 Версия бота"),
+			types.BotCommand(command="update", description="🔄 Обновление (админ)")
+		])
+		logger.info("✅ Команды бота установлены")
+	except Exception as e:
+		logger.error(f"❌ Ошибка установки команд: {e}")
+	
+	# Запускаем keep-alive в фоне
+	keep_alive_task = asyncio.create_task(keep_alive())
+	
+	# Запускаем мониторинг обновлений в фоне
+	update_monitor_task = asyncio.create_task(update_manager.start_update_monitor())
+	
+	try:
+		logger.info("🔄 Запускаем polling с улучшенными настройками...")
+		
+		# Улучшенные настройки polling для предотвращения "засыпания"
+		await dp.start_polling(
+			bot,
+			skip_updates=True,
+			allowed_updates=["message", "callback_query", "inline_query"],
+			drop_pending_updates=True,
+			close_bot_session=False,  # Не закрываем сессию при остановке
+			timeout=30,  # Увеличиваем timeout
+			limit=100,   # Увеличиваем лимит обновлений
+			backoff_factor=1.5,  # Экспоненциальная задержка при ошибках
+			request_timeout=30.0  # Timeout для запросов
+		)
+		
+	except KeyboardInterrupt:
+		logger.info("⏹️ Бот остановлен пользователем")
+	except Exception as e:
+		logger.error(f"❌ Критическая ошибка в main: {e}")
+		logger.error(f"🔍 Тип ошибки: {type(e).__name__}")
+		import traceback
+		logger.error(f"📋 Traceback: {traceback.format_exc()}")
 	finally:
-		await currency_service.close()
+		logger.info("🧹 Закрываем соединения...")
+		
+		# Отменяем keep-alive задачу
+		keep_alive_task.cancel()
+		try:
+			await keep_alive_task
+		except asyncio.CancelledError:
+			pass
+		
+		# Отменяем задачу мониторинга обновлений
+		update_monitor_task.cancel()
+		try:
+			await update_monitor_task
+		except asyncio.CancelledError:
+			pass
+		
+		# Закрываем сервисы
+		try:
+			await currency_service.close()
+		except Exception as e:
+			logger.error(f"❌ Ошибка закрытия currency_service: {e}")
+		
+		# Закрываем соединение с ботом
+		try:
+			await bot.session.close()
+		except Exception as e:
+			logger.error(f"❌ Ошибка закрытия bot session: {e}")
+		
+		logger.info("✅ Бот завершен корректно")
+
+def check_required_files():
+    """Проверка наличия необходимых файлов"""
+    required_files = ["config.py", "currency_service.py", "database.py", "keyboards.py"]
+    missing_files = [f for f in required_files if not os.path.exists(f)]
+    
+    if missing_files:
+        print(f"❌ Отсутствуют необходимые файлы: {', '.join(missing_files)}")
+        return False
+    
+    if not os.path.exists(".env"):
+        print("⚠️ Файл .env не найден. Убедитесь, что он создан с токеном бота.")
+        print("Пример содержимого .env:")
+        print("BOT_TOKEN=your_bot_token_here")
+        return False
+    
+    return True
+
+def show_startup_menu():
+    """Показать меню запуска"""
+    print("🤖 Запуск бота конвертации валют...")
+    print("=" * 50)
+    print("Выберите режим запуска:")
+    print("1. 🚀 Обычный режим (рекомендуется)")
+    print("2. 🔍 Режим отладки (подробные логи)")
+    print("3. ❌ Выход")
+    print("=" * 50)
+    
+    while True:
+        try:
+            choice = input("Введите номер (1-3): ").strip()
+            if choice in ["1", "2", "3"]:
+                return choice
+            else:
+                print("❌ Неверный выбор. Введите 1, 2 или 3.")
+        except KeyboardInterrupt:
+            print("\n❌ Отменено пользователем")
+            return "3"
+
+def setup_logging(debug_mode=False):
+    """Настройка логирования в зависимости от режима"""
+    level = logging.DEBUG if debug_mode else logging.INFO
+    format_str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    
+    handlers = [
+        logging.StreamHandler(),
+        logging.FileHandler('bot.log', encoding='utf-8')
+    ]
+    
+    if debug_mode:
+        handlers.append(logging.FileHandler('bot_debug.log', encoding='utf-8'))
+    
+    logging.basicConfig(
+        level=level,
+        format=format_str,
+        handlers=handlers
+    )
+    
+    logger = logging.getLogger(__name__)
+    if debug_mode:
+        logger.info("🔍 Режим отладки включен")
+    return logger
+
+async def run_bot_with_monitoring():
+    """Запуск бота с мониторингом (автоперезапуск при сбоях)"""
+    restart_count = 0
+    max_restarts = 10
+    
+    while restart_count < max_restarts:
+        try:
+            logger.info(f"🚀 Запуск бота (попытка {restart_count + 1})...")
+            await main()
+        except Exception as e:
+            restart_count += 1
+            logger.error(f"❌ Бот упал (попытка {restart_count}): {e}")
+            
+            if restart_count < max_restarts:
+                wait_time = min(30, restart_count * 5)  # Экспоненциальная задержка
+                logger.info(f"⏳ Перезапуск через {wait_time} секунд...")
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"❌ Достигнуто максимальное количество перезапусков ({max_restarts})")
+                break
+        except KeyboardInterrupt:
+            logger.info("⏹️ Остановка по запросу пользователя")
+            break
+
+def main_cli():
+    """Главная функция командной строки"""
+    parser = argparse.ArgumentParser(description="Telegram бот конвертации валют")
+    parser.add_argument("--monitor", "-m", action="store_true", 
+                       help="Запуск с мониторингом (автоперезапуск)")
+    parser.add_argument("--debug", "-d", action="store_true", 
+                       help="Режим отладки")
+    parser.add_argument("--menu", action="store_true", 
+                       help="Показать интерактивное меню")
+    
+    args = parser.parse_args()
+    
+    # Проверяем необходимые файлы
+    if not check_required_files():
+        return 1
+    
+    # Настраиваем логирование
+    setup_logging(args.debug)
+    
+    if args.menu:
+        # Интерактивное меню
+        choice = show_startup_menu()
+        if choice == "3":
+            return 0
+        elif choice == "2":
+            setup_logging(debug_mode=True)
+    
+    try:
+        if args.monitor or (args.menu and choice == "1"):
+            # Запуск с мониторингом
+            asyncio.run(run_bot_with_monitoring())
+        else:
+            # Обычный запуск
+            asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n⏹️ Бот остановлен")
+        return 0
+    except Exception as e:
+        print(f"❌ Критическая ошибка: {e}")
+        return 1
+    
+    return 0
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    sys.exit(main_cli()) 

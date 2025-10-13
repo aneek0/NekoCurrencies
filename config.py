@@ -14,6 +14,9 @@ CURRENCY_FREAKS_BASE_URL = "https://api.currencyfreaks.com/v2.0/rates/latest"
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API_KEY')
 EXCHANGE_RATE_BASE_URL = "https://v6.exchangerate-api.com/v6"
 
+# НБРБ API (белорусский источник)
+NBRB_BASE_URL = "https://www.nbrb.by/api"
+
 # Supported currencies
 FIAT_CURRENCIES = {
     'USD': '🇺🇸 USD', 'EUR': '🇪🇺 EUR', 'GBP': '🇬🇧 GBP', 'JPY': '🇯🇵 JPY',

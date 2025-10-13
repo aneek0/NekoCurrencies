@@ -112,7 +112,8 @@ def get_api_source_keyboard(current_source: str = "auto", lang: str = 'ru') -> I
 	options = [
 		("auto", "Авто (лучший доступный)" if lang=='ru' else "Auto (best available)"),
 		("currencyfreaks", "CurrencyFreaks (основной)" if lang=='ru' else "CurrencyFreaks (primary)"),
-		("exchangerate", "ExchangeRate-API (резервный)" if lang=='ru' else "ExchangeRate-API (fallback)")
+		("exchangerate", "ExchangeRate-API (резервный)" if lang=='ru' else "ExchangeRate-API (fallback)"),
+		("nbrb", "НБРБ (официальные курсы)" if lang=='ru' else "NBRB (official rates)")
 	]
 	for key, name in options:
 		icon = "✅" if key == current_source else "❌"
