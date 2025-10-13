@@ -18,7 +18,6 @@ from keyboards import (
 from database import UserDatabase
 from update_manager import UpdateManager, check_restart_after_update
 from typing import Dict
-import aiohttp
 import signal
 import sys
 
@@ -29,7 +28,7 @@ if sys.platform == "win32":
 else:
     # Unix: пытаемся использовать uvloop
     try:
-        import uvloop
+        import uvloop  # pyright: ignore[reportMissingImports]
         uvloop.install()
     except ImportError:
         pass  # Используем стандартный event loop
@@ -64,7 +63,6 @@ update_manager = None
 # Keep-alive механизм
 async def keep_alive():
     """Периодически отправляет запросы для поддержания соединения"""
-    global last_activity_time
     while is_running:
         try:
             # Проверяем соединение с Telegram API

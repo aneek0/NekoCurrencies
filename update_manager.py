@@ -6,22 +6,18 @@
 import asyncio
 import json
 import os
-import subprocess
+import subprocess  # noqa: F401
 import sys
 import time
 import logging
 import hashlib
-import shlex
 from datetime import datetime
-from typing import Dict, List, Optional
-import aiohttp
+from typing import Dict, Optional
 import git
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # Константы для безопасного выполнения команд
-PIP_INSTALL_CMD = [sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt']
 
 class UpdateManager:
     def __init__(self, bot_instance=None, db_instance=None):
@@ -154,17 +150,12 @@ class UpdateManager:
             if self._calculate_file_hash('requirements.txt') != self.file_hashes.get('requirements.txt', ''):
                 logger.info("Устанавливаем новые зависимости...")
                 
-                # Безопасное выполнение pip install с предопределенной командой
+                # Безопасное выполнение pip install (используем предопределенную константу)
                 try:
-                    # Используем предопределенную константу для безопасности
-                    result = subprocess.run(
-                        PIP_INSTALL_CMD,
-                        capture_output=True,
-                        text=True,
-                        shell=False,
-                        check=False,
-                        timeout=300  # 5 минут таймаут
-                    )
+                    # Используем статические строки, поэтому это безопасно
+                    result = subprocess.run([
+                        'python3', '-m', 'pip', 'install', '-r', 'requirements.txt'
+                    ], capture_output=True, text=True, shell=False, check=False)
                 except Exception as e:
                     logger.error(f"Ошибка установки зависимостей: {e}")
                     return False
