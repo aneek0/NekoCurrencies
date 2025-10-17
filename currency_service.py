@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Tuple
 from config import (
     CURRENCY_FREAKS_API_KEY, CURRENCY_FREAKS_BASE_URL,
     EXCHANGE_RATE_API_KEY, EXCHANGE_RATE_BASE_URL,
+    NBRB_BASE_URL,
     FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES
 )
 from word2number import w2n
@@ -20,18 +21,21 @@ class CurrencyService:
         self.exchangerate_api_key = EXCHANGE_RATE_API_KEY
         self.exchangerate_base_url = EXCHANGE_RATE_BASE_URL
         
+        # НБРБ API (белорусский источник)
+        self.nbrb_base_url = NBRB_BASE_URL
+        
         # Математический парсер
         self.math_parser = MathParser()
         
         self.rates_cache = {}
         self.cache_timeout = 600  # 10 minutes (увеличиваем время кэширования)
-        self.api_failures = {'currencyfreaks': 0, 'exchangerate': 0}  # Счетчик ошибок API
+        self.api_failures = {'currencyfreaks': 0, 'exchangerate': 0, 'nbrb': 0}  # Счетчик ошибок API
         self.max_failures = 3  # Максимальное количество ошибок перед переключением
         self._session: Optional[httpx.AsyncClient] = None
     
     async def _get_session(self) -> httpx.AsyncClient:
         if self._session is None:
-            self._session = httpx.AsyncClient()
+            self._session = httpx.AsyncClient(timeout=10.0)  # 10 секунд таймаут
         return self._session
     
     async def close(self):
@@ -40,7 +44,7 @@ class CurrencyService:
 
     async def get_exchange_rates(self, base_currency: str = 'USD', api_source: str = 'auto') -> Dict:
         """Получить курсы валют с приоритетом API и умным кэшированием.
-        api_source: 'auto' | 'currencyfreaks' | 'exchangerate'"""
+        api_source: 'auto' | 'currencyfreaks' | 'exchangerate' | 'nbrb'"""
         # Проверяем кэш (учитываем выбранный источник)
         cache_key = f"{api_source}:{base_currency}_rates"
         if cache_key in self.rates_cache:
@@ -79,6 +83,19 @@ class CurrencyService:
                 self.api_failures['exchangerate'] += 1
             return None
 
+        async def try_nbrb() -> Optional[Dict]:
+            try:
+                rates = await self._get_nbrb_rates(base_currency)
+                if rates:
+                    print("✅ Используем НБРБ API")
+                    self.api_failures['nbrb'] = 0
+                    self.rates_cache[cache_key] = (asyncio.get_event_loop().time(), rates)
+                    return rates
+            except Exception as e:
+                print(f"❌ НБРБ API ошибка: {e}")
+                self.api_failures['nbrb'] += 1
+            return None
+
         # Выбираем стратегию в зависимости от api_source
         if api_source == 'currencyfreaks':
             rates = await try_currencyfreaks()
@@ -88,19 +105,31 @@ class CurrencyService:
             rates = await try_exchangerate()
             if rates:
                 return rates
+        elif api_source == 'nbrb':
+            rates = await try_nbrb()
+            if rates:
+                return rates
         else:  # auto
-            # 1. Пробуем CurrencyFreaks, если нет частых ошибок
+            # 1. Пробуем CurrencyFreaks (основной, стабильный)
             if self.api_failures['currencyfreaks'] < self.max_failures:
                 rates = await try_currencyfreaks()
                 if rates:
                     return rates
-            # 2. Пробуем ExchangeRate-API
+            
+            # 2. Пробуем ExchangeRate-API (резервный)
             if self.api_failures['exchangerate'] < self.max_failures:
                 rates = await try_exchangerate()
                 if rates:
                     return rates
+            
+            # 3. НБРБ API временно отключен в авторежиме из-за нестабильности
+            # Пользователи могут выбрать его вручную в настройках
+            # if self.api_failures['nbrb'] < self.max_failures:
+            #     rates = await try_nbrb()
+            #     if rates:
+            #         return rates
 
-        # 3. Используем fallback курсы
+        # 4. Используем fallback курсы
         print("⚠️ Используем fallback курсы")
         fallback_rates = self._get_fallback_rates(base_currency)
         self.rates_cache[cache_key] = (asyncio.get_event_loop().time(), fallback_rates)
@@ -159,6 +188,57 @@ class CurrencyService:
             print(f"❌ ExchangeRate-API Exception: {e}")
             return None
 
+    async def _get_nbrb_rates(self, base_currency: str = 'USD') -> Optional[Dict]:
+        """Получить курсы от НБРБ API"""
+        try:
+            session = await self._get_session()
+            
+            # НБРБ API возвращает курсы относительно BYN, поэтому конвертируем
+            if base_currency == 'BYN':
+                # Получаем все курсы валют
+                url = f"{self.nbrb_base_url}/exrates/rates"
+                params = {'Periodicity': 0}  # 0 = текущие курсы
+                response = await session.get(url, params=params)
+                if response.status_code == 200:
+                    data = response.json()
+                    rates = {}
+                    for currency in data:
+                        if currency.get('Cur_Abbreviation') and currency.get('Cur_OfficialRate'):
+                            code = currency['Cur_Abbreviation']
+                            rate = currency['Cur_OfficialRate']
+                            rates[code] = 1.0 / rate  # Конвертируем в BYN
+                    
+                    # Добавляем BYN как базовую валюту
+                    rates['BYN'] = 1.0
+                    return rates
+                else:
+                    print(f"❌ НБРБ API Error: {response.status_code}")
+                    return None
+            else:
+                # Для других базовых валют получаем курс через USD
+                usd_rates = await self._get_nbrb_rates('BYN')
+                if usd_rates and 'USD' in usd_rates:
+                    # Конвертируем через USD
+                    usd_to_byn = usd_rates['USD']
+                    target_to_byn = usd_rates.get(base_currency, 1.0)
+                    
+                    # Создаем курсы относительно целевой валюты
+                    rates = {}
+                    for code, byn_rate in usd_rates.items():
+                        if code != base_currency:
+                            rates[code] = byn_rate / target_to_byn
+                    
+                    # Добавляем базовую валюту
+                    rates[base_currency] = 1.0
+                    return rates
+                else:
+                    return None
+                    
+        except Exception as e:
+            print(f"❌ НБРБ API Exception: {e}")
+            print(f"🔍 Детали ошибки: {type(e).__name__}")
+            return None
+
     def _get_fallback_rates(self, base_currency: str = 'USD') -> Dict:
         """Fallback курсы валют для случаев, когда API недоступен"""
         # Основные курсы относительно USD (примерные)
@@ -199,51 +279,7 @@ class CurrencyService:
             'DEM': 1.67, 'GRD': 293.0, 'IEP': 0.67, 'ITL': 1650.0,
             'LVL': 0.60, 'LTL': 2.90, 'LUF': 40.3, 'MTL': 1.33,
             'NLG': 2.20, 'PTE': 200.0, 'ROL': 42000.0,
-            'SIT': 240.0, 'SKK': 25.7, 'ESP': 166.0, 'SEK': 9.56,
-            'CHF': 0.81, 'UAH': 41.0, 'BYN': 3.33, 'RUB': 80.0,
-            'KZT': 541.0, 'UZS': 12550.0, 'TJS': 9.32, 'TMT': 3.51,
-            'GEL': 2.69, 'AMD': 383.0, 'AZN': 1.7, 'KGS': 87.4,
-            'MNT': 3595.0, 'CNY': 7.18, 'HKD': 7.83, 'JPY': 147.0,
-            'KRW': 1389.0, 'TWD': 30.0, 'SGD': 1.28, 'MYR': 4.21,
-            'THB': 32.4, 'IDR': 16190.0, 'PHP': 57.0, 'VND': 26269.0,
-            'LAK': 21601.0, 'KHR': 4005.0, 'MMK': 2099.0, 'BDT': 121.0,
-            'LKR': 301.0, 'NPR': 140.0, 'BTN': 87.5, 'MVR': 15.4,
-            'PKR': 283.0, 'AFN': 69.0, 'IRR': 42119.0, 'IQD': 1310.0,
-            'JOD': 0.71, 'KWD': 0.31, 'BHD': 0.38, 'QAR': 3.64,
-            'AED': 3.67, 'OMR': 0.38, 'YER': 240.0, 'SAR': 3.75,
-            'ILS': 3.38, 'EGP': 48.3, 'NGN': 1532.0, 'KES': 129.0,
-            'GHS': 10.7, 'MAD': 9.01, 'TND': 2.90, 'LYD': 5.41,
-            'DZD': 130.0, 'TZS': 2612.0, 'UGX': 3559.0, 'RWF': 1446.0,
-            'BIF': 2959.0, 'DJF': 178.0, 'SOS': 571.0, 'ETB': 141.0,
-            'SDG': 600.0, 'SSP': 4532.0, 'ERN': 1.37, 'SLL': 20341.0,
-            'GNF': 8678.0, 'SLE': 23.4, 'GMD': 72.5, 'ZAR': 17.6,
-            'BWP': 13.4, 'NAD': 17.6, 'LSL': 17.6, 'SZL': 17.6,
-            'MUR': 45.6, 'SCR': 14.2, 'KMF': 420.0, 'MGA': 4443.0,
-            'CDF': 2895.0, 'MWK': 1735.0, 'ZMW': 23.2, 'ZWL': 13.7,
-            'ZWD': 377.0, 'BRL': 5.4, 'ARS': 1310.0, 'CLP': 963.0,
-            'COP': 4027.0, 'PEN': 3.56, 'UYU': 40.1, 'PYG': 7450.0,
-            'BOB': 6.92, 'GTQ': 7.67, 'HNL': 26.4, 'SVC': 8.75,
-            'NIO': 36.8, 'CRC': 505.0, 'PAB': 1.0, 'BSD': 1.0,
-            'BMD': 1.0, 'BZD': 2.01, 'TTD': 6.78, 'JMD': 160.0,
-            'HTG': 131.0, 'DOP': 62.0, 'CUP': 25.4, 'XCD': 2.70,
-            'BBD': 2.0, 'ANG': 1.79, 'AWG': 1.80, 'MOP': 8.07,
-            'HKD': 7.83, 'TWD': 30.0, 'KRW': 1389.0, 'SGD': 1.28,
-            'MYR': 4.21, 'THB': 32.4, 'IDR': 16190.0, 'PHP': 57.0,
-            'VND': 26269.0, 'LAK': 21601.0, 'KHR': 4005.0, 'MMK': 2099.0,
-            'BDT': 121.0, 'LKR': 301.0, 'NPR': 140.0, 'BTN': 87.5,
-            'MVR': 15.4, 'PKR': 283.0, 'AFN': 69.0, 'IRR': 42119.0,
-            'IQD': 1310.0, 'JOD': 0.71, 'KWD': 0.31, 'BHD': 0.38,
-            'QAR': 3.64, 'AED': 3.67, 'OMR': 0.38, 'YER': 240.0,
-            'SAR': 3.75, 'ILS': 3.38, 'EGP': 48.3, 'NGN': 1532.0,
-            'KES': 129.0, 'GHS': 10.7, 'MAD': 9.01, 'TND': 2.90,
-            'LYD': 5.41, 'DZD': 130.0, 'TZS': 2612.0, 'UGX': 3559.0,
-            'RWF': 1446.0, 'BIF': 2959.0, 'DJF': 178.0, 'SOS': 571.0,
-            'ETB': 141.0, 'SDG': 600.0, 'SSP': 4532.0, 'ERN': 1.37,
-            'SLL': 20341.0, 'GNF': 8678.0, 'SLE': 23.4, 'GMD': 72.5,
-            'ZAR': 17.6, 'BWP': 13.4, 'NAD': 17.6, 'LSL': 17.6,
-            'SZL': 17.6, 'MUR': 45.6, 'SCR': 14.2, 'KMF': 420.0,
-            'MGA': 4443.0, 'CDF': 2895.0, 'MWK': 1735.0, 'ZMW': 23.2,
-            'ZWL': 13.7, 'ZWD': 377.0
+            'SIT': 240.0, 'SKK': 25.7, 'ESP': 166.0
         }
         
         # Криптовалюты (примерные курсы)
@@ -385,8 +421,8 @@ class CurrencyService:
             # Сначала пробуем английские числа
             try:
                 return w2n.word_to_num(clean_text)
-            except Exception:
-                # Fallback к русским числам
+            except (ValueError, TypeError, AttributeError):
+                # Fallback к русским числам - английские числа не распознаны
                 pass
             
             # Затем пробуем русские числа
@@ -573,7 +609,7 @@ class CurrencyService:
             return {}
         
         results: Dict[str, Dict[str, float]] = {}
-        api_used = api_source if api_source in ['currencyfreaks','exchangerate'] else 'auto'
+        api_used = api_source if api_source in ['currencyfreaks','exchangerate','nbrb'] else 'auto'
         
         if from_currency == 'USD':
             usd_amount = amount
