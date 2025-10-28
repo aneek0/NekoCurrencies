@@ -6,7 +6,7 @@ import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineQuery, InlineQueryResultArticle, InputTextMessageContent
-from config import BOT_TOKEN, FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES
+from config import BOT_TOKEN, FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES, ADMIN_IDS
 from currency_service import CurrencyService
 from keyboards import (
     get_main_menu_keyboard, get_letter_keyboard,
@@ -364,9 +364,7 @@ async def cmd_update(message: Message):
     last_activity_time = time.time()
     
     # Проверяем, является ли пользователь администратором
-    admin_ids = [1286936026]  # Замените на ваш ID
-    
-    if message.from_user.id not in admin_ids:
+    if message.from_user.id not in ADMIN_IDS:
         lang = db.get_language(message.from_user.id)
         await message.answer("❌ У вас нет прав для выполнения этой команды.")
         return
@@ -870,7 +868,20 @@ async def inline_query_handler(inline_query: InlineQuery):
         selected = db.get_selected_currencies(inline_query.from_user.id)
         all_target = selected['fiat'] + selected['crypto']
         if not all_target:
-            all_target = list(FIAT_CURRENCIES.keys()) + list(CRYPTO_CURRENCIES.keys())
+            # Если нет выбранных валют, показываем сообщение о необходимости настройки
+            lang = db.get_language(inline_query.from_user.id)
+            results = [
+                InlineQueryResultArticle(
+                    id="no_currencies",
+                    title=_t('no_currencies_selected', lang),
+                    description="Настройте валюты в /settings",
+                    input_message_content=InputTextMessageContent(
+                        message_text=_t('no_currencies_selected', lang)
+                    )
+                )
+            ]
+            await inline_query.answer(results, cache_time=0)
+            return
         if from_currency in all_target:
             all_target.remove(from_currency)
         api_source = db.get_api_source(inline_query.from_user.id)

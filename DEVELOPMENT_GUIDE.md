@@ -2,58 +2,58 @@
 
 ## 📋 Project Overview
 
-**NekoCurrencies** - Telegram-бот для автоматического распознавания и конвертации валют в текстовых сообщениях с использованием актуальных курсов валют.
+**NekoCurrencies** - A Telegram bot for automatic recognition and conversion of currencies in text messages using real-time exchange rates.
 
 ### 🎯 Main Purpose
-- Автоматическое распознавание сумм и валют в тексте
-- Конвертация в выбранные пользователем валюты
-- Поддержка 150+ фиатных и 25+ криптовалют
-- Многоязычный интерфейс (русский/английский)
+- Automatic recognition of amounts and currencies in text
+- Conversion to user-selected currencies
+- Support for 150+ fiat and 25+ cryptocurrencies
+- Multi-language interface (Russian/English)
 
 ### Key Technologies
-- **Python 3.8+** с современными библиотеками
+- **Python 3.9+** with modern libraries
 - **aiogram 3.22.0** - Telegram Bot framework
-- **httpx** - HTTP клиент с HTTP/2
-- **uv** - современный менеджер пакетов
-- **JSON** - простое хранение данных пользователей
+- **httpx** - HTTP client with HTTP/2 support
+- **uv** - modern Python package manager
+- **JSON** - simple user data storage
 
 ## 🏗️ Architecture
 
 ### Core Components
 
 #### 1. **Bot Core** (`bot.py`)
-- **Main Handler**: Обработка сообщений и команд
-- **Message Processing**: Распознавание валют и сумм в тексте
-- **Inline Queries**: Поддержка инлайн-режима
-- **Admin Commands**: Управление ботом (/update, /version)
-- **Localization**: Поддержка русского и английского языков
+- **Main Handler**: Message and command processing
+- **Message Processing**: Currency and amount recognition in text
+- **Inline Queries**: Inline mode support
+- **Admin Commands**: Bot management (/update, /version)
+- **Localization**: Russian and English language support
 
 #### 2. **Currency Service** (`currency_service.py`)
-- **Multi-API Support**: CurrencyFreaks (основной), ExchangeRate-API (резервный), НБРБ (запасной)
-- **Smart Fallback**: Автоматическое переключение между API при сбоях
-- **Caching**: Кэширование курсов на 10 минут
-- **Currency Recognition**: Поддержка кодов, символов, названий и сленга
-- **Math Parser**: Обработка математических выражений
+- **Multi-API Support**: CurrencyFreaks (primary), ExchangeRate-API (backup), NBRB (fallback)
+- **Smart Fallback**: Automatic switching between APIs on failures
+- **Caching**: Currency rate caching for 10 minutes
+- **Currency Recognition**: Support for codes, symbols, names, and slang
+- **Math Parser**: Mathematical expression processing
 
 #### 3. **Database** (`database.py`)
-- **JSON Storage**: Простое хранение пользовательских настроек
-- **User Preferences**: Режимы обработки, выбранные валюты, язык, внешний вид
-- **Settings Management**: API источники, режим отладки
+- **JSON Storage**: Simple user preference storage
+- **User Preferences**: Processing modes, selected currencies, language, appearance
+- **Settings Management**: API sources, debug mode
 
 #### 4. **Keyboards** (`keyboards.py`)
-- **Dynamic Keyboards**: Инлайн-клавиатуры для настроек
-- **Currency Selection**: Выбор валют по буквам алфавита
-- **Settings Interface**: Настройки языка, режимов, внешнего вида
+- **Dynamic Keyboards**: Inline keyboards for settings
+- **Currency Selection**: Currency selection by alphabet letters
+- **Settings Interface**: Language, mode, appearance settings
 
 #### 5. **Math Parser** (`math_parser.py`)
-- **Expression Evaluation**: Обработка математических выражений
-- **Currency Detection**: Поиск валют в выражениях
-- **Error Handling**: Корректная обработка ошибок парсинга
+- **Expression Evaluation**: Mathematical expression processing
+- **Currency Detection**: Currency search in expressions
+- **Error Handling**: Correct error handling for parsing
 
 #### 6. **Update Manager** (`update_manager.py`)
-- **Auto-Updates**: Автоматическое обновление из Git
-- **User Notifications**: Уведомления пользователей об обновлениях
-- **Version Tracking**: Отслеживание версий и изменений
+- **Auto-Updates**: Automatic updates from Git
+- **User Notifications**: User notifications about updates
+- **Version Tracking**: Version and change tracking
 
 ## 🔧 Configuration
 
@@ -74,24 +74,24 @@ CACHE_LIFETIME=300
 ### User Settings (JSON Database)
 - **Processing Modes**: simplified, standard, advanced
 - **API Sources**: auto, currencyfreaks, exchangerate, nbrb
-- **Selected Currencies**: fiat и crypto списки
-- **Appearance**: флаги, коды, символы, компактность
+- **Selected Currencies**: fiat and crypto lists
+- **Appearance**: flags, codes, symbols, compactness
 - **Language**: ru/en
-- **Debug Mode**: показ источников данных
+- **Debug Mode**: data source display
 
 ## 🌐 API Integration
 
 ### Primary APIs
-1. **CurrencyFreaks API** - основной источник курсов
-2. **ExchangeRate-API** - резервный источник
-3. **НБРБ API** - официальные курсы Беларуси
-4. **Fallback Rates** - офлайн курсы при недоступности API
+1. **CurrencyFreaks API** - primary exchange rate source
+2. **ExchangeRate-API** - backup source
+3. **NBRB API** - official Belarus exchange rates
+4. **Fallback Rates** - offline rates when APIs are unavailable
 
 ### API Strategy
-- **Auto Mode**: Умное переключение между источниками
-- **Manual Selection**: Пользователь может выбрать конкретный API
-- **Failure Handling**: Автоматическое переключение при сбоях
-- **Rate Limiting**: Кэширование и ограничение запросов
+- **Auto Mode**: Smart switching between sources
+- **Manual Selection**: User can choose specific API
+- **Failure Handling**: Automatic switching on failures
+- **Rate Limiting**: Caching and request limiting
 
 ## 💱 Supported Currencies
 
@@ -113,58 +113,58 @@ CACHE_LIFETIME=300
 - **Codes**: USD, EUR, BTC
 - **Symbols**: $, €, ₿, ₽, ₴
 - **Names**: dollar, euro, bitcoin
-- **Slang**: buck, green, bitcoin (русский сленг)
+- **Slang**: buck, green, bitcoin (Russian slang)
 - **Aliases**: доллар, евро, биткоин
 
 ## 🎨 User Interface
 
 ### Processing Modes
-1. **Simplified**: Только числа в начале сообщения
-2. **Standard**: Обычная обработка без W2N/M2N
-3. **Advanced**: Полная обработка с W2N и M2N
+1. **Simplified**: Only numbers at the beginning of messages
+2. **Standard**: Regular processing without W2N/M2N
+3. **Advanced**: Full processing with W2N and M2N
 
 ### Appearance Options
-- **Flags**: Показ флагов стран (🇺🇸, 🇪🇺)
-- **Codes**: Показ кодов валют (USD, EUR)
-- **Symbols**: Показ символов валют ($, €)
-- **Compact**: Компактный формат вывода
+- **Flags**: Display country flags (🇺🇸, 🇪🇺)
+- **Codes**: Display currency codes (USD, EUR)
+- **Symbols**: Display currency symbols ($, €)
+- **Compact**: Compact output format
 
 ### Debug Features
-- **Source Display**: Показ источника данных для каждой валюты
-- **API Monitoring**: Отслеживание использования API
-- **Error Logging**: Детальное логирование ошибок
+- **Source Display**: Display data source for each currency
+- **API Monitoring**: Track API usage
+- **Error Logging**: Detailed error logging
 
 ## 🤖 AI Assistant Guidelines
 
 ### Development Principles
 
 #### 1. **Code Quality First**
-- ✅ Всегда используйте **type hints** для функций и переменных
-- ✅ Следуйте **PEP 8** стандартам форматирования
-- ✅ Добавляйте **docstrings** для всех функций и классов
-- ✅ Используйте **async/await** для всех I/O операций
-- ✅ Обрабатывайте **exceptions** корректно
+- ✅ Always use **type hints** for functions and variables
+- ✅ Follow **PEP 8** formatting standards
+- ✅ Add **docstrings** for all functions and classes
+- ✅ Use **async/await** for all I/O operations
+- ✅ Handle **exceptions** correctly
 
 #### 2. **Performance Optimization**
-- ✅ Используйте **caching** для API запросов
-- ✅ Минимизируйте **database calls**
-- ✅ Оптимизируйте **memory usage**
-- ✅ Используйте **connection pooling**
-- ✅ Реализуйте **rate limiting**
+- ✅ Use **caching** for API requests
+- ✅ Minimize **database calls**
+- ✅ Optimize **memory usage**
+- ✅ Use **connection pooling**
+- ✅ Implement **rate limiting**
 
 #### 3. **User Experience**
-- ✅ **Responsive** интерфейс с быстрыми ответами
-- ✅ **Intuitive** команды и настройки
-- ✅ **Error messages** на языке пользователя
-- ✅ **Graceful degradation** при сбоях API
-- ✅ **Progressive enhancement** функций
+- ✅ **Responsive** interface with fast responses
+- ✅ **Intuitive** commands and settings
+- ✅ **Error messages** in user's language
+- ✅ **Graceful degradation** on API failures
+- ✅ **Progressive enhancement** of features
 
 #### 4. **Security & Privacy**
-- ✅ **Never hardcode** секреты в код
-- ✅ Используйте **environment variables**
-- ✅ **Validate** все пользовательские данные
-- ✅ **Sanitize** input перед обработкой
-- ✅ **Log** только необходимую информацию
+- ✅ **Never hardcode** secrets in code
+- ✅ Use **environment variables**
+- ✅ **Validate** all user data
+- ✅ **Sanitize** input before processing
+- ✅ **Log** only necessary information
 
 ### Technical Guidelines
 
@@ -423,41 +423,41 @@ def log_api_call(api_name: str, endpoint: str, status: int, duration: float):
 ## 🚀 Deployment
 
 ### Requirements
-- **Python**: 3.8+
+- **Python**: 3.9+
 - **Memory**: < 50MB
 - **Storage**: < 100MB
-- **Network**: Стабильное интернет-соединение
+- **Network**: Stable internet connection
 
 ### Installation Options
-1. **uv** (рекомендуется): `pip install uv && uv sync`
+1. **uv** (recommended): `pip install uv && uv sync`
 2. **pip**: `pip install -r requirements.txt`
 
 ### Configuration
-1. Создать `.env` файл из `.env.example`
-2. Заполнить токен бота и API ключи
-3. Настроить админов в `ADMIN_IDS`
-4. Запустить: `python bot.py`
+1. Create `.env` file from `.env.example`
+2. Fill in bot token and API keys
+3. Configure admins in `ADMIN_IDS`
+4. Run: `python bot.py`
 
 ### Production Considerations
-- ✅ **Process Management**: Используйте systemd или supervisor
-- ✅ **Log Rotation**: Настройте ротацию логов
-- ✅ **Monitoring**: Настройте мониторинг ресурсов
-- ✅ **Backup**: Регулярные бэкапы данных
-- ✅ **Security**: Обновляйте зависимости регулярно
+- ✅ **Process Management**: Use systemd or supervisor
+- ✅ **Log Rotation**: Configure log rotation
+- ✅ **Monitoring**: Set up resource monitoring
+- ✅ **Backup**: Regular data backups
+- ✅ **Security**: Update dependencies regularly
 
 ## 🔍 Code Review Checklist
 
 ### Before Submitting Code
-- [ ] **Type hints** добавлены для всех функций
-- [ ] **Docstrings** написаны для всех публичных методов
-- [ ] **Error handling** реализован корректно
-- [ ] **Logging** добавлен для важных операций
-- [ ] **Tests** написаны для новой функциональности
-- [ ] **Performance** оптимизирован для больших нагрузок
-- [ ] **Security** проверен на уязвимости
-- [ ] **Localization** поддержан для всех текстов
-- [ ] **Backward compatibility** сохранена
-- [ ] **Documentation** обновлена при необходимости
+- [ ] **Type hints** added for all functions
+- [ ] **Docstrings** written for all public methods
+- [ ] **Error handling** implemented correctly
+- [ ] **Logging** added for important operations
+- [ ] **Tests** written for new functionality
+- [ ] **Performance** optimized for high loads
+- [ ] **Security** checked for vulnerabilities
+- [ ] **Localization** supported for all texts
+- [ ] **Backward compatibility** maintained
+- [ ] **Documentation** updated when necessary
 
 ## 🎯 Common Patterns
 
@@ -498,66 +498,47 @@ async def process_currency_message(text: str, user_id: int) -> str:
 ## 📚 Resources
 
 ### Documentation
-- **Configuration**: `.env.example` - примеры конфигурации
-- **Dependencies**: `requirements.txt` и `pyproject.toml`
+- **Configuration**: `.env.example` - configuration examples
+- **Dependencies**: `requirements.txt` and `pyproject.toml`
 
 ### Tools
-- **uv**: Современный менеджер пакетов Python
-- **Codacy**: Автоматическая проверка качества кода
-- **pytest**: Фреймворк для тестирования
-- **black**: Форматирование кода
-- **mypy**: Проверка типов
+- **uv**: Modern Python package manager
+- **Codacy**: Automated code quality checking
+- **pytest**: Testing framework
+- **black**: Code formatting
+- **mypy**: Type checking
 
 ### External APIs
 - **CurrencyFreaks**: https://currencyfreaks.com/
 - **ExchangeRate-API**: https://exchangerate-api.com/
-- **НБРБ**: https://www.nbrb.by/api
+- **NBRB**: https://www.nbrb.by/api
 - **Telegram Bot API**: https://core.telegram.org/bots/api
 
 ## 🔒 Security
 
 ### Security Measures
-- **Environment Variables**: Секреты в .env файлах
-- **API Key Rotation**: Ротация API ключей
-- **Input Validation**: Валидация пользовательского ввода
-- **Rate Limiting**: Ограничение запросов
-- **Error Handling**: Безопасная обработка ошибок
-- **Dependency Scanning**: Проверка уязвимостей
+- **Environment Variables**: Secrets in .env files
+- **API Key Rotation**: API key rotation
+- **Input Validation**: User input validation
+- **Rate Limiting**: Request limiting
+- **Error Handling**: Safe error handling
+- **Dependency Scanning**: Vulnerability scanning
 
 ### Privacy
-- **Minimal Data Collection**: Минимальный сбор данных
-- **Local Storage**: Данные хранятся локально
-- **No Tracking**: Отсутствие отслеживания пользователей
-- **GDPR Compliance**: Соответствие требованиям GDPR
-
-## 📈 Future Enhancements
-
-### Planned Features
-- **More APIs**: Дополнительные источники курсов
-- **Portfolio Tracking**: Отслеживание портфеля
-- **Price Alerts**: Уведомления о курсах
-- **Historical Data**: Исторические курсы
-- **Charts**: Графики курсов
-- **Mobile App**: Мобильное приложение
-
-### Technical Improvements
-- **Database Migration**: Переход на PostgreSQL/SQLite
-- **Microservices**: Разделение на микросервисы
-- **API Rate Limiting**: Улучшенное ограничение запросов
-- **Caching Layer**: Redis для кэширования
-- **Monitoring**: Prometheus + Grafana
-- **CI/CD**: Автоматическое тестирование и деплой
+- **Minimal Data Collection**: Minimal data collection
+- **Local Storage**: Data stored locally
+- **No Tracking**: No user tracking
+- **GDPR Compliance**: GDPR compliance
 
 ---
 
 ## 💡 Remember
 
-При работе с проектом NekoCurrencies всегда помните:
+When working with the NekoCurrencies project, always remember:
 
-1. **Пользователь на первом месте** - UX важнее технических деталей
-2. **Простота и надежность** - лучше простое решение, которое работает
-3. **Производительность** - бот должен отвечать быстро
-4. **Безопасность** - никогда не компрометируйте пользовательские данные
-5. **Масштабируемость** - код должен работать при росте нагрузки
+1. **Simplicity and reliability** - better simple solution that works
+2. **Performance** - bot should respond quickly
+3. **Security** - never compromise user data
+4. **Scalability** - code should work under increased load
 
-Удачи в разработке! 🚀
+Good luck with development! 🚀

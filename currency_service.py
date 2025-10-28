@@ -50,10 +50,12 @@ class CurrencyService:
         if cache_key in self.rates_cache:
             cache_time, rates = self.rates_cache[cache_key]
             if (asyncio.get_event_loop().time() - cache_time) < self.cache_timeout:
-                print("✅ Используем кэшированные курсы")
+                # Определяем реальный источник из кэша
+                actual_source = self._get_cached_source(cache_key)
+                print(f"✅ Используем кэшированные курсы (источник: {actual_source})")
                 return rates
 
-        async def try_currencyfreaks() -> Optional[Dict]:
+        async def try_currencyfreaks() -> Optional[Tuple[Dict, str]]:
             if not self.currencyfreaks_api_key:
                 return None
             try:
@@ -62,13 +64,13 @@ class CurrencyService:
                     print("✅ Используем CurrencyFreaks API")
                     self.api_failures['currencyfreaks'] = 0
                     self.rates_cache[cache_key] = (asyncio.get_event_loop().time(), rates)
-                    return rates
+                    return rates, 'currencyfreaks'
             except Exception as e:
                 print(f"❌ CurrencyFreaks API ошибка: {e}")
                 self.api_failures['currencyfreaks'] += 1
             return None
 
-        async def try_exchangerate() -> Optional[Dict]:
+        async def try_exchangerate() -> Optional[Tuple[Dict, str]]:
             if not self.exchangerate_api_key:
                 return None
             try:
@@ -77,20 +79,20 @@ class CurrencyService:
                     print("✅ Используем ExchangeRate-API")
                     self.api_failures['exchangerate'] = 0
                     self.rates_cache[cache_key] = (asyncio.get_event_loop().time(), rates)
-                    return rates
+                    return rates, 'exchangerate'
             except Exception as e:
                 print(f"❌ ExchangeRate-API ошибка: {e}")
                 self.api_failures['exchangerate'] += 1
             return None
 
-        async def try_nbrb() -> Optional[Dict]:
+        async def try_nbrb() -> Optional[Tuple[Dict, str]]:
             try:
                 rates = await self._get_nbrb_rates(base_currency)
                 if rates:
                     print("✅ Используем НБРБ API")
                     self.api_failures['nbrb'] = 0
                     self.rates_cache[cache_key] = (asyncio.get_event_loop().time(), rates)
-                    return rates
+                    return rates, 'nbrb'
             except Exception as e:
                 print(f"❌ НБРБ API ошибка: {e}")
                 self.api_failures['nbrb'] += 1
@@ -98,35 +100,41 @@ class CurrencyService:
 
         # Выбираем стратегию в зависимости от api_source
         if api_source == 'currencyfreaks':
-            rates = await try_currencyfreaks()
-            if rates:
+            result = await try_currencyfreaks()
+            if result:
+                rates, source = result
                 return rates
         elif api_source == 'exchangerate':
-            rates = await try_exchangerate()
-            if rates:
+            result = await try_exchangerate()
+            if result:
+                rates, source = result
                 return rates
         elif api_source == 'nbrb':
-            rates = await try_nbrb()
-            if rates:
+            result = await try_nbrb()
+            if result:
+                rates, source = result
                 return rates
         else:  # auto
             # 1. Пробуем CurrencyFreaks (основной, стабильный)
             if self.api_failures['currencyfreaks'] < self.max_failures:
-                rates = await try_currencyfreaks()
-                if rates:
+                result = await try_currencyfreaks()
+                if result:
+                    rates, source = result
                     return rates
             
             # 2. Пробуем ExchangeRate-API (резервный)
             if self.api_failures['exchangerate'] < self.max_failures:
-                rates = await try_exchangerate()
-                if rates:
+                result = await try_exchangerate()
+                if result:
+                    rates, source = result
                     return rates
             
             # 3. НБРБ API временно отключен в авторежиме из-за нестабильности
             # Пользователи могут выбрать его вручную в настройках
             # if self.api_failures['nbrb'] < self.max_failures:
-            #     rates = await try_nbrb()
-            #     if rates:
+            #     result = await try_nbrb()
+            #     if result:
+            #         rates, source = result
             #         return rates
 
         # 4. Используем fallback курсы
@@ -134,6 +142,101 @@ class CurrencyService:
         fallback_rates = self._get_fallback_rates(base_currency)
         self.rates_cache[cache_key] = (asyncio.get_event_loop().time(), fallback_rates)
         return fallback_rates
+
+    async def get_exchange_rates_with_source(self, base_currency: str = 'USD', api_source: str = 'auto') -> Tuple[Dict, str]:
+        """Получить курсы валют с указанием реального источника.
+        Возвращает (rates, source) где source - реальный источник данных"""
+        # Проверяем кэш (учитываем выбранный источник)
+        cache_key = f"{api_source}:{base_currency}_rates"
+        if cache_key in self.rates_cache:
+            cache_time, rates = self.rates_cache[cache_key]
+            if (asyncio.get_event_loop().time() - cache_time) < self.cache_timeout:
+                # Определяем реальный источник из кэша
+                actual_source = self._get_cached_source(cache_key)
+                print(f"✅ Используем кэшированные курсы (источник: {actual_source})")
+                return rates, actual_source
+
+        async def try_currencyfreaks() -> Optional[Tuple[Dict, str]]:
+            if not self.currencyfreaks_api_key:
+                return None
+            try:
+                rates = await self._get_currencyfreaks_rates(base_currency)
+                if rates:
+                    print("✅ Используем CurrencyFreaks API")
+                    self.api_failures['currencyfreaks'] = 0
+                    self.rates_cache[cache_key] = (asyncio.get_event_loop().time(), rates)
+                    return rates, 'currencyfreaks'
+            except Exception as e:
+                print(f"❌ CurrencyFreaks API ошибка: {e}")
+                self.api_failures['currencyfreaks'] += 1
+            return None
+
+        async def try_exchangerate() -> Optional[Tuple[Dict, str]]:
+            if not self.exchangerate_api_key:
+                return None
+            try:
+                rates = await self._get_exchangerate_rates(base_currency)
+                if rates:
+                    print("✅ Используем ExchangeRate-API")
+                    self.api_failures['exchangerate'] = 0
+                    self.rates_cache[cache_key] = (asyncio.get_event_loop().time(), rates)
+                    return rates, 'exchangerate'
+            except Exception as e:
+                print(f"❌ ExchangeRate-API ошибка: {e}")
+                self.api_failures['exchangerate'] += 1
+            return None
+
+        async def try_nbrb() -> Optional[Tuple[Dict, str]]:
+            try:
+                rates = await self._get_nbrb_rates(base_currency)
+                if rates:
+                    print("✅ Используем НБРБ API")
+                    self.api_failures['nbrb'] = 0
+                    self.rates_cache[cache_key] = (asyncio.get_event_loop().time(), rates)
+                    return rates, 'nbrb'
+            except Exception as e:
+                print(f"❌ НБРБ API ошибка: {e}")
+                self.api_failures['nbrb'] += 1
+            return None
+
+        # Выбираем стратегию в зависимости от api_source
+        if api_source == 'currencyfreaks':
+            result = await try_currencyfreaks()
+            if result:
+                return result
+        elif api_source == 'exchangerate':
+            result = await try_exchangerate()
+            if result:
+                return result
+        elif api_source == 'nbrb':
+            result = await try_nbrb()
+            if result:
+                return result
+        else:  # auto
+            # 1. Пробуем CurrencyFreaks (основной, стабильный)
+            if self.api_failures['currencyfreaks'] < self.max_failures:
+                result = await try_currencyfreaks()
+                if result:
+                    return result
+            
+            # 2. Пробуем ExchangeRate-API (резервный)
+            if self.api_failures['exchangerate'] < self.max_failures:
+                result = await try_exchangerate()
+                if result:
+                    return result
+            
+            # 3. НБРБ API временно отключен в авторежиме из-за нестабильности
+            # Пользователи могут выбрать его вручную в настройках
+            # if self.api_failures['nbrb'] < self.max_failures:
+            #     result = await try_nbrb()
+            #     if result:
+            #         return result
+
+        # 4. Используем fallback курсы
+        print("⚠️ Используем fallback курсы")
+        fallback_rates = self._get_fallback_rates(base_currency)
+        self.rates_cache[cache_key] = (asyncio.get_event_loop().time(), fallback_rates)
+        return fallback_rates, 'fallback'
 
     async def _get_currencyfreaks_rates(self, base_currency: str = 'USD') -> Optional[Dict]:
         """Получить курсы от CurrencyFreaks API"""
@@ -239,9 +342,34 @@ class CurrencyService:
             print(f"🔍 Детали ошибки: {type(e).__name__}")
             return None
 
+    def _get_cached_source(self, cache_key: str) -> str:
+        """Определить реальный источник данных из ключа кэша"""
+        if 'currencyfreaks' in cache_key:
+            return 'cache currencyfreaks'
+        elif 'exchangerate' in cache_key:
+            return 'cache exchangerate'
+        elif 'nbrb' in cache_key:
+            return 'cache nbrb'
+        elif 'fallback' in cache_key:
+            return 'cache fallback'
+        else:
+            # Для режима auto определяем по содержимому кэша
+            if cache_key in self.rates_cache:
+                cache_time, rates = self.rates_cache[cache_key]
+                # Проверяем, какие валюты есть в кэше
+                if 'BTC' in rates and 'ETH' in rates:
+                    return 'cache currencyfreaks'  # CurrencyFreaks поддерживает криптовалюты
+                elif 'BYN' in rates:
+                    return 'cache nbrb'  # НБРБ поддерживает BYN
+                else:
+                    return 'cache exchangerate'  # ExchangeRate-API как fallback
+            return 'cache unknown'
+
     def _get_fallback_rates(self, base_currency: str = 'USD') -> Dict:
-        """Fallback курсы валют для случаев, когда API недоступен"""
+        """Fallback курсы валют для случаев, когда API недоступен.
+        Содержит только валюты, поддерживаемые реальными API."""
         # Основные курсы относительно USD (примерные)
+        # Убраны неподдерживаемые валюты: DEM, ESP, FIM, FRF, GRD, IEP, ITL, LUF, NLG, PTE, ROL, SIT
         usd_rates = {
             'USD': 1.0, 'EUR': 0.85, 'GBP': 0.73, 'JPY': 147.0,
             'CNY': 7.18, 'RUB': 80.0, 'UAH': 41.0, 'BYN': 3.33,
@@ -275,11 +403,8 @@ class CurrencyService:
             'KMF': 420.0, 'MGA': 4443.0, 'CDF': 2895.0, 'MWK': 1735.0,
             'ZMW': 23.2, 'ZWL': 13.7, 'ZWD': 377.0, 'BAM': 1.67,
             'RSD': 100.0, 'MKD': 52.7, 'ALL': 83.7, 'BGN': 1.67,
-            'HRK': 6.44, 'EEK': 13.4, 'FIM': 5.08, 'FRF': 5.6,
-            'DEM': 1.67, 'GRD': 293.0, 'IEP': 0.67, 'ITL': 1650.0,
-            'LVL': 0.60, 'LTL': 2.90, 'LUF': 40.3, 'MTL': 1.33,
-            'NLG': 2.20, 'PTE': 200.0, 'ROL': 42000.0,
-            'SIT': 240.0, 'SKK': 25.7, 'ESP': 166.0
+            'HRK': 6.44, 'EEK': 13.4, 'LVL': 0.60, 'LTL': 2.90,
+            'MTL': 1.33, 'SKK': 25.7
         }
         
         # Криптовалюты (примерные курсы)
@@ -290,7 +415,7 @@ class CurrencyService:
             'ATOM': 0.22, 'LTC': 0.0083, 'BCH': 0.0017, 'XRP': 0.32,
             'DOGE': 4.32, 'SHIB': 76982.0, 'TRX': 2.87, 'XLM': 2.34,
             'DAI': 1.0, 'BUSD': 1.0, 'TUSD': 1.0, 'GUSD': 1.0,
-            'FRAX': 0.36, 'LUSD': 1.0, 'TON': 0.29
+            'FRAX': 0.36, 'LUSD': 1.0, 'TON': 16.0
         }
         
         # Объединяем курсы
@@ -349,6 +474,8 @@ class CurrencyService:
             r'(\d+(?:[.,]\d+)?)([a-z]{3}|[а-яё.]+)',
             # "5 долларов", "10.5 евро"
             r'(\d+(?:[.,]\d+)?)\s+([а-яё]+)',
+            # Короткие алиасы: "1 tg", "5 р", "10 тг"
+            r'(\d+(?:[.,]\d+)?)\s+([a-zа-яё]{1,3})',
             # "$5", "€10.5", "5$", "10.5€"
             r'([$€£¥₽₴₸₩₹₿Ξ💎])\s*(\d+(?:[.,]\d+)?)',
             r'(\d+(?:[.,]\d+)?)\s*([$€£¥₽₴₸₩₹₿Ξ💎])',
@@ -598,23 +725,34 @@ class CurrencyService:
     async def convert_currency(self, amount: float, from_currency: str, to_currencies: List[str], api_source: str = 'auto') -> Dict:
         """Конвертация валюты через USD для экономии API запросов"""
         if from_currency in CRYPTO_CURRENCIES:
-            return await self._convert_crypto(amount, from_currency, to_currencies)
+            return await self._convert_crypto(amount, from_currency, to_currencies, api_source=api_source)
         else:
             return await self._convert_fiat(amount, from_currency, to_currencies, api_source=api_source)
     
     async def _convert_fiat(self, amount: float, from_currency: str, to_currencies: List[str], api_source: str = 'auto') -> Dict:
         """Конвертация фиатных валют через USD (экономит API запросы)"""
-        usd_rates = await self.get_exchange_rates('USD', api_source=api_source)
+        usd_rates, actual_source = await self.get_exchange_rates_with_source('USD', api_source=api_source)
         if not usd_rates:
             return {}
         
         results: Dict[str, Dict[str, float]] = {}
-        api_used = api_source if api_source in ['currencyfreaks','exchangerate','nbrb'] else 'auto'
+        api_used = actual_source
         
         if from_currency == 'USD':
             usd_amount = amount
         elif from_currency in usd_rates:
-            usd_amount = amount / float(usd_rates[from_currency])
+            from_rate = usd_rates[from_currency]
+            # Проверяем тип данных
+            if isinstance(from_rate, (int, float)):
+                usd_amount = amount / float(from_rate)
+            else:
+                # Если курс не число, используем fallback
+                fallback_rates = self._get_fallback_rates('USD')
+                if from_currency in fallback_rates:
+                    usd_amount = amount / fallback_rates[from_currency]
+                    api_used = 'fallback'
+                else:
+                    return {}
         else:
             # Пробуем fallback курсы
             fallback_rates = self._get_fallback_rates('USD')
@@ -628,9 +766,17 @@ class CurrencyService:
             if to_currency == 'USD':
                 results[to_currency] = {'amount': usd_amount, 'source': api_used}
             elif to_currency in usd_rates:
-                rate = float(usd_rates[to_currency])
-                converted_amount = usd_amount * rate
-                results[to_currency] = {'amount': converted_amount, 'source': api_used}
+                to_rate = usd_rates[to_currency]
+                # Проверяем тип данных
+                if isinstance(to_rate, (int, float)):
+                    converted_amount = usd_amount * float(to_rate)
+                    results[to_currency] = {'amount': converted_amount, 'source': api_used}
+                else:
+                    # Если курс не число, используем fallback
+                    fallback_rates = self._get_fallback_rates('USD')
+                    if to_currency in fallback_rates:
+                        converted_amount = usd_amount * fallback_rates[to_currency]
+                        results[to_currency] = {'amount': converted_amount, 'source': 'fallback'}
             else:
                 # Пробуем fallback курсы для целевой валюты
                 fallback_rates = self._get_fallback_rates('USD')
@@ -640,32 +786,101 @@ class CurrencyService:
         
         return results
 
-    async def _convert_crypto(self, amount: float, from_currency: str, to_currencies: List[str]) -> Dict:
-        """Конвертация криптовалют (упрощенная модель)"""
-        crypto_rates = {
-            'BTC': 45000, 'ETH': 3000, 'TON': 2.9, 'USDT': 1.0,
-            'BNB': 300, 'ADA': 0.5, 'SOL': 100, 'DOT': 7,
-            'MATIC': 0.8, 'LINK': 15, 'UNI': 7, 'AVAX': 25,
-            'ATOM': 10, 'LTC': 70, 'BCH': 250, 'XRP': 0.6,
-            'DOGE': 0.08, 'SHIB': 0.00001, 'TRX': 0.1, 'XLM': 0.15
-        }
-        if from_currency not in crypto_rates:
+    async def _convert_crypto(self, amount: float, from_currency: str, to_currencies: List[str], api_source: str = 'auto') -> Dict:
+        """Конвертация криптовалют через реальные API"""
+        print(f"🔍 _convert_crypto: {amount} {from_currency} -> {to_currencies}")
+        
+        # Получаем реальные курсы через API
+        usd_rates, actual_source = await self.get_exchange_rates_with_source('USD', api_source=api_source)
+        if not usd_rates:
+            print(f"❌ Нет курсов от API")
             return {}
-        from_rate = crypto_rates[from_currency]
+        
         results: Dict[str, Dict[str, float]] = {}
-        for to_currency in to_currencies:
-            if to_currency in crypto_rates:
-                to_rate = crypto_rates[to_currency]
-                results[to_currency] = {'amount': (amount * from_rate) / to_rate, 'source': 'crypto-table'}
-            elif to_currency in FIAT_CURRENCIES:
-                usd_amount = amount * from_rate
-                fiat_rates = {
-                    'USD': 1.0, 'EUR': 0.85, 'GBP': 0.73, 'JPY': 110,
-                    'CNY': 6.5, 'RUB': 75, 'UAH': 27, 'BYN': 2.5,
-                    'KZT': 420, 'CZK': 22, 'KRW': 1200, 'INR': 75
-                }
-                if to_currency in fiat_rates:
-                    results[to_currency] = {'amount': usd_amount * fiat_rates[to_currency], 'source': 'crypto+fallback'}
+        
+        # Проверяем, есть ли from_currency в курсах
+        if from_currency not in usd_rates:
+            print(f"❌ {from_currency} не найден в API курсах")
+            # Если криптовалюта не найдена в API, используем fallback
+            fallback_rates = self._get_fallback_rates('USD')
+            if from_currency not in fallback_rates:
+                print(f"❌ {from_currency} не найден в fallback курсах")
+                return {}
+            
+            print(f"✅ Используем fallback для {from_currency}")
+            # Используем fallback для from_currency
+            from_rate = fallback_rates[from_currency]
+            print(f"🔍 Fallback курс {from_currency}: {from_rate} USD")
+            for to_currency in to_currencies:
+                if to_currency in usd_rates:
+                    usd_amount = amount * from_rate
+                    to_rate = usd_rates[to_currency]
+                    # Проверяем тип данных
+                    if isinstance(to_rate, (int, float)):
+                        converted_amount = usd_amount * to_rate
+                        results[to_currency] = {'amount': converted_amount, 'source': actual_source}
+                        print(f"✅ {to_currency}: {converted_amount} (API)")
+                elif to_currency in fallback_rates:
+                    usd_amount = amount * from_rate
+                    converted_amount = usd_amount * fallback_rates[to_currency]
+                    results[to_currency] = {'amount': converted_amount, 'source': 'fallback'}
+                    print(f"✅ {to_currency}: {converted_amount} (fallback)")
+        else:
+            print(f"✅ {from_currency} найден в API курсах")
+            # from_currency есть в API курсах
+            from_rate = usd_rates[from_currency]
+            print(f"🔍 API курс {from_currency}: {from_rate} USD (тип: {type(from_rate)})")
+            # Проверяем тип данных
+            if not isinstance(from_rate, (int, float)):
+                print(f"❌ {from_currency} курс не число: {type(from_rate)} = {from_rate}")
+                # Пробуем преобразовать строку в число
+                try:
+                    from_rate = float(from_rate)
+                    print(f"✅ Преобразовали {from_currency} в число: {from_rate}")
+                except (ValueError, TypeError):
+                    # Если не получается, используем fallback
+                    fallback_rates = self._get_fallback_rates('USD')
+                    if from_currency in fallback_rates:
+                        from_rate = fallback_rates[from_currency]
+                        print(f"✅ Используем fallback для {from_currency}: {from_rate}")
+                    else:
+                        print(f"❌ {from_currency} не найден в fallback")
+                        return {}
+            
+            for to_currency in to_currencies:
+                if to_currency in usd_rates:
+                    usd_amount = amount * from_rate
+                    to_rate = usd_rates[to_currency]
+                    # Проверяем тип данных
+                    if isinstance(to_rate, (int, float)):
+                        converted_amount = usd_amount * to_rate
+                        results[to_currency] = {'amount': converted_amount, 'source': actual_source}
+                        print(f"✅ {to_currency}: {converted_amount} (API)")
+                    else:
+                        # Пробуем преобразовать строку в число
+                        try:
+                            to_rate = float(to_rate)
+                            converted_amount = usd_amount * to_rate
+                            results[to_currency] = {'amount': converted_amount, 'source': actual_source}
+                            print(f"✅ {to_currency}: {converted_amount} (API, преобразовано)")
+                        except (ValueError, TypeError):
+                            print(f"❌ {to_currency} курс не число: {type(to_rate)} = {to_rate}")
+                            # Используем fallback для этой валюты
+                            fallback_rates = self._get_fallback_rates('USD')
+                            if to_currency in fallback_rates:
+                                converted_amount = usd_amount * fallback_rates[to_currency]
+                                results[to_currency] = {'amount': converted_amount, 'source': 'fallback'}
+                                print(f"✅ {to_currency}: {converted_amount} (fallback)")
+                else:
+                    # Если валюта не найдена в API, используем fallback
+                    fallback_rates = self._get_fallback_rates('USD')
+                    if to_currency in fallback_rates:
+                        usd_amount = amount * from_rate
+                        converted_amount = usd_amount * fallback_rates[to_currency]
+                        results[to_currency] = {'amount': converted_amount, 'source': 'fallback'}
+                        print(f"✅ {to_currency}: {converted_amount} (fallback)")
+        
+        print(f"🔍 Результат: {results}")
         return results
     
     def format_currency_amount(self, amount: float, currency: str, appearance: Optional[Dict] = None) -> str:
