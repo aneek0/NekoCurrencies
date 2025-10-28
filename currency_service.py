@@ -793,7 +793,7 @@ class CurrencyService:
         # Получаем реальные курсы через API
         usd_rates, actual_source = await self.get_exchange_rates_with_source('USD', api_source=api_source)
         if not usd_rates:
-            print(f"❌ Нет курсов от API")
+            print("❌ Нет курсов от API")
             return {}
         
         results: Dict[str, Dict[str, float]] = {}
