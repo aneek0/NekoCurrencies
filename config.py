@@ -6,6 +6,9 @@ load_dotenv()
 # Telegram Bot Token
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
+# Admin IDs (comma-separated list)
+ADMIN_IDS = [int(x.strip()) for x in os.getenv('ADMIN_IDS', '').split(',') if x.strip()]
+
 # CurrencyFreaks API (основной)
 CURRENCY_FREAKS_API_KEY = os.getenv('CURRENCY_FREAKS_API_KEY')
 CURRENCY_FREAKS_BASE_URL = "https://api.currencyfreaks.com/v2.0/rates/latest"
@@ -88,12 +91,12 @@ CURRENCY_ALIASES = {
     'руб': 'RUB', 'руб.': 'RUB', 'рубл': 'RUB', 'рубл.': 'RUB',
 	'р': 'RUB', 'р.': 'RUB',
     'русач': 'RUB', 'русачей': 'RUB', 'русача': 'RUB', 'русачи': 'RUB',
-	'тенге': 'KZT', 'тг': 'KZT', 'тг.': 'KZT',
+    'тенге': 'KZT', 'тг': 'KZT', 'тг.': 'KZT', 'tg': 'KZT', 'tg.': 'KZT',
     'бел': 'BYN', 'бел.': 'BYN', 'белорус': 'BYN', 'белорусов': 'BYN', 'белоруса': 'BYN', 'белорусы': 'BYN',
     'белорусский рубль': 'BYN', 'белорусских рублей': 'BYN', 'белорусского рубля': 'BYN', 'белорусские рубли': 'BYN',
     'белрубль': 'BYN', 'белрублей': 'BYN', 'белрубля': 'BYN', 'белрубли': 'BYN',
     'бр': 'BYN', 'бр.': 'BYN',
-	'крона': 'CZK', 'крон': 'CZK',
+    'крона': 'CZK', 'крон': 'CZK',
     'вона': 'KRW', 'вон': 'KRW',
     'рупия': 'INR', 'рупий': 'INR', 'рупии': 'INR',
     'злотый': 'PLN', 'злотых': 'PLN', 'злотого': 'PLN', 'злотые': 'PLN',

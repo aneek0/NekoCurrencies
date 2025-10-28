@@ -127,40 +127,6 @@ The bot automatically applies performance optimizations:
 - **Health Checks**: Regular monitoring of memory and CPU usage
 - **Graceful Shutdown**: Proper cleanup of resources on exit
 
-## 💾 Data Storage
-
-The bot uses a simple JSON file (`users.json`) to store user preferences and settings:
-
-```json
-{
-  "123456789": {
-    "user_id": 123456789,
-    "processing_mode": "standard",
-    "api_source": "auto",
-    "debug_mode": false,
-    "language": "ru",
-    "appearance": {
-      "show_flags": true,
-      "show_codes": true,
-      "show_symbols": true,
-      "compact": false
-    },
-    "selected_currencies": {
-      "fiat": ["USD", "EUR"],
-      "crypto": ["BTC", "ETH"]
-    },
-    "created_at": "2023-01-01T00:00:00.000000",
-    "last_activity": "2023-01-01T12:00:00.000000"
-  }
-}
-```
-
-**Benefits of JSON storage:**
-- ✅ No external database dependencies
-- ✅ Easy to backup and transfer
-- ✅ Human-readable format for debugging
-- ✅ Simple deployment and maintenance
-
 ## 🌐 Other Languages
 
 - [Русский](README-ru.md) - Russian documentation
@@ -209,15 +175,6 @@ Output: ₽300
 → Shows conversion results to select
 ```
 
-## 🏗️ Architecture
-
-- **Bot Framework**: aiogram 3.x
-- **HTTP Client**: httpx (modern, fast, HTTP/2 support)
-- **Currency Service**: Multi-API with smart fallbacks
-- **Database**: JSON file storage for user preferences
-- **Caching**: Intelligent rate caching (10 minutes)
-- **Error Handling**: Graceful degradation on API failures
-
 ## 📊 Supported Formats
 
 ### Numbers
@@ -254,27 +211,6 @@ Output: ₽300
 4. **Fallback Rates** (Offline)
    - Approximate rates
    - Works without internet
-
-## 🌍 Localization
-
-- **Russian**: Full interface support
-- **English**: Complete translation
-- **Auto-detection**: Based on user language
-
-## 📈 Performance
-
-- **Response Time**: < 2 seconds
-- **Cache Hit Rate**: > 80%
-- **API Efficiency**: Smart request batching
-- **Memory Usage**: < 50MB
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
 
 ## 🔄 Auto-Update System
 
@@ -313,52 +249,6 @@ Edit `update_config.json` to customize update behavior:
   }
 }
 ```
-
-## 🔍 Monitoring & Maintenance
-
-### Bot Monitoring System
-
-The bot includes a comprehensive monitoring system to ensure reliable operation:
-
-#### Features
-- **🔄 Keep-Alive**: Prevents bot from "sleeping" during inactivity
-- **📊 Health Checks**: Monitors memory and CPU usage
-- **🔄 Auto-Restart**: Automatically restarts bot if it stops responding
-- **📝 Detailed Logging**: Logs all activities to `bot.log` and `monitor.log`
-
-#### Usage
-
-```bash
-# Start with monitoring (recommended)
-python start_bot.py
-
-# Or run monitoring directly
-python bot_monitor.py
-```
-
-#### Monitoring Options
-1. **Simple Start**: `python bot.py` - Basic bot operation
-2. **Monitored Start**: `python start_bot.py` - Interactive startup with monitoring
-3. **Direct Monitoring**: `python bot_monitor.py` - Monitoring for already running bot
-
-#### Log Files
-- `bot.log` - Bot activity and errors
-- `monitor.log` - Monitoring system logs
-- Console output - Real-time status information
-
-#### Configuration
-The monitoring system can be configured by editing `bot_monitor.py`:
-- `max_restarts`: Maximum restart attempts (default: 10)
-- `restart_delay`: Delay between restarts (default: 5 seconds)
-- `health_check_interval`: Health check frequency (default: 30 seconds)
-
-### Troubleshooting
-
-If the bot seems unresponsive:
-1. Check `bot.log` for error messages
-2. Restart with monitoring: `python start_bot.py`
-3. Monitor system resources (memory, CPU)
-4. Check internet connection and API availability
 
 ## 📄 License
 
