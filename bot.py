@@ -16,7 +16,6 @@ from keyboards import (
     get_language_keyboard, get_appearance_keyboard
 )
 from database import UserDatabase
-from update_manager import UpdateManager, check_restart_after_update
 from typing import Dict
 import signal
 import sys
@@ -39,7 +38,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('bot.log', encoding='utf-8')
+        logging.FileHandler('logs/bot.log', encoding='utf-8')
     ]
 )
 logger = logging.getLogger(__name__)
@@ -56,9 +55,6 @@ db = UserDatabase()
 bot_start_time = time.time()
 last_activity_time = time.time()
 is_running = True
-
-# Инициализация менеджера обновлений (будет создан после инициализации бота)
-update_manager = None
 
 # Keep-alive механизм
 async def keep_alive():
@@ -357,60 +353,13 @@ async def cmd_settings(message: Message):
     lang = db.get_language(message.from_user.id)
     await message.answer(_t('settings', lang), reply_markup=get_settings_keyboard(lang))
 
-@dp.message(Command("update"))
-async def cmd_update(message: Message):
-    """Обработчик команды /update - ручное обновление (только для админов)"""
-    global last_activity_time, update_manager
-    last_activity_time = time.time()
-    
-    # Проверяем, является ли пользователь администратором
-    if message.from_user.id not in ADMIN_IDS:
-        lang = db.get_language(message.from_user.id)
-        await message.answer("❌ У вас нет прав для выполнения этой команды.")
-        return
-    
-    if not update_manager:
-        await message.answer("❌ Система обновлений недоступна.")
-        return
-    
-    try:
-        await message.answer("🔄 Начинаем ручное обновление...")
-        
-        # Выполняем обновление
-        success = await update_manager.perform_update()
-        
-        if success:
-            await message.answer("✅ Обновление успешно запущено!")
-        else:
-            await message.answer("❌ Ошибка при обновлении. Проверьте логи.")
-            
-    except Exception as e:
-        logger.error(f"Ошибка ручного обновления: {e}")
-        await message.answer(f"❌ Ошибка: {e}")
-
 @dp.message(Command("version"))
 async def cmd_version(message: Message):
     """Обработчик команды /version - показать версию бота"""
-    global last_activity_time, update_manager
+    global last_activity_time
     last_activity_time = time.time()
     
-    if update_manager:
-        info = update_manager.get_update_info()
-        version = info.get('current_version', 'Unknown')
-        last_check = info.get('last_check', 0)
-        
-        if last_check > 0:
-            last_check_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_check))
-        else:
-            last_check_time = "Никогда"
-        
-        response = f"🤖 **Версия бота:** `{version}`\n"
-        response += f"📅 **Последняя проверка обновлений:** {last_check_time}\n"
-        response += f"🔄 **Статус обновлений:** {'Обновляется' if info.get('is_updating') else 'Активен'}"
-        
-        await message.answer(response, parse_mode="Markdown")
-    else:
-        await message.answer("❌ Информация о версии недоступна.")
+    await message.answer("🤖 **Бот конвертации валют**\n\nВерсия: 1.0.0", parse_mode="Markdown")
 
 @dp.callback_query(lambda c: c.data == "settings")
 async def process_settings_callback(callback: CallbackQuery):
@@ -970,18 +919,9 @@ async def process_back_to_currency_selection(callback: CallbackQuery):
 
 async def main():
 	"""Главная функция с улучшенными настройками"""
-	global last_activity_time, update_manager
+	global last_activity_time
 	
 	logger.info("🚀 Запуск бота конвертации валют...")
-	
-	# Проверяем, был ли бот перезапущен после обновления
-	restart_info = check_restart_after_update()
-	if restart_info:
-		logger.info(f"🔄 Бот перезапущен после обновления: {restart_info.get('version', 'Unknown')}")
-	
-	# Инициализируем менеджер обновлений
-	update_manager = UpdateManager(bot, db)
-	logger.info(f"📦 Менеджер обновлений инициализирован. Версия: {update_manager.current_version}")
 	
 	# Устанавливаем команды бота
 	try:
@@ -989,8 +929,7 @@ async def main():
 			types.BotCommand(command="start", description="🚀 Запустить бота"),
 			types.BotCommand(command="help", description="📖 Справка и помощь"),
 			types.BotCommand(command="settings", description="⚙️ Настройки бота"),
-			types.BotCommand(command="version", description="📋 Версия бота"),
-			types.BotCommand(command="update", description="🔄 Обновление (админ)")
+			types.BotCommand(command="version", description="📋 Версия бота")
 		])
 		logger.info("✅ Команды бота установлены")
 	except Exception as e:
@@ -998,9 +937,6 @@ async def main():
 	
 	# Запускаем keep-alive в фоне
 	keep_alive_task = asyncio.create_task(keep_alive())
-	
-	# Запускаем мониторинг обновлений в фоне
-	update_monitor_task = asyncio.create_task(update_manager.start_update_monitor())
 	
 	try:
 		logger.info("🔄 Запускаем polling с улучшенными настройками...")
@@ -1032,13 +968,6 @@ async def main():
 		keep_alive_task.cancel()
 		try:
 			await keep_alive_task
-		except asyncio.CancelledError:
-			pass
-		
-		# Отменяем задачу мониторинга обновлений
-		update_monitor_task.cancel()
-		try:
-			await update_monitor_task
 		except asyncio.CancelledError:
 			pass
 		
@@ -1101,11 +1030,11 @@ def setup_logging(debug_mode=False):
     
     handlers = [
         logging.StreamHandler(),
-        logging.FileHandler('bot.log', encoding='utf-8')
+        logging.FileHandler('logs/bot.log', encoding='utf-8')
     ]
     
     if debug_mode:
-        handlers.append(logging.FileHandler('bot_debug.log', encoding='utf-8'))
+        handlers.append(logging.FileHandler('logs/bot_debug.log', encoding='utf-8'))
     
     logging.basicConfig(
         level=level,
