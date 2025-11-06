@@ -4,7 +4,7 @@ from typing import Dict, List
 from datetime import datetime
 
 class UserDatabase:
-    def __init__(self, db_file: str = "users.json"):
+    def __init__(self, db_file: str = "data/users.json"):
         self.db_file = db_file
         self.users = self._load_users()
     

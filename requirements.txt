@@ -1,13 +1,13 @@
 aiogram==3.22.0
 httpx>=0.28.1
-python-dotenv==1.1.1
+python-dotenv>=1.2.1
 num2words==0.5.14
 word2number==1.1
 uvloop==0.22.1; sys_platform != "win32"
-orjson>=3.11.3; sys_platform != "win32"
+orjson>=3.11.4; sys_platform != "win32"
 ujson>=5.11.0
 aiofiles>=23.2.1,<24.2
 aiocache>=0.12.3
-psutil>=7.1.0
+psutil>=7.1.2
 py-cpuinfo>=9.0.0
 GitPython>=3.1.45
