@@ -25,12 +25,13 @@
 - **Main Handler**: Message and command processing
 - **Message Processing**: Currency and amount recognition in text
 - **Inline Queries**: Inline mode support
-- **Admin Commands**: Bot management (/update, /version)
+- **Admin Commands**: Bot management (/version)
 - **Localization**: Russian and English language support
 
 #### 2. **Currency Service** (`currency_service.py`)
-- **Multi-API Support**: CurrencyFreaks (primary), ExchangeRate-API (backup), NBRB (fallback)
+- **Multi-API Support**: NBRB (primary for fiat), CurrencyFreaks (backup), ExchangeRate-API (fallback)
 - **Smart Fallback**: Automatic switching between APIs on failures
+- **Crypto Support**: CurrencyFreaks/ExchangeRate for cryptocurrencies
 - **Caching**: Currency rate caching for 10 minutes
 - **Currency Recognition**: Support for codes, symbols, names, and slang
 - **Math Parser**: Mathematical expression processing
@@ -50,10 +51,6 @@
 - **Currency Detection**: Currency search in expressions
 - **Error Handling**: Correct error handling for parsing
 
-#### 6. **Update Manager** (`update_manager.py`)
-- **Auto-Updates**: Automatic updates from Git
-- **User Notifications**: User notifications about updates
-- **Version Tracking**: Version and change tracking
 
 ## 🔧 Configuration
 
@@ -82,10 +79,9 @@ CACHE_LIFETIME=300
 ## 🌐 API Integration
 
 ### Primary APIs
-1. **CurrencyFreaks API** - primary exchange rate source
-2. **ExchangeRate-API** - backup source
-3. **NBRB API** - official Belarus exchange rates
-4. **Fallback Rates** - offline rates when APIs are unavailable
+1. **NBRB API** - primary exchange rate source for fiat currencies (official Belarus rates)
+2. **CurrencyFreaks API** - backup source for fiat, primary for cryptocurrencies
+3. **ExchangeRate-API** - fallback source for fiat and cryptocurrencies
 
 ### API Strategy
 - **Auto Mode**: Smart switching between sources
@@ -332,39 +328,6 @@ def _t(key: str, lang: str = 'ru', **kwargs) -> str:
     """Get localized text with formatting."""
     text = TEXTS.get(lang, TEXTS['ru']).get(key, key)
     return text.format(**kwargs) if kwargs else text
-```
-
-### Update System Guidelines
-
-#### Auto-Update Best Practices
-```python
-# ✅ Good: Safe update process
-async def perform_update(self) -> bool:
-    """Perform safe update with rollback capability."""
-    try:
-        # 1. Create backup
-        backup_path = await self._create_backup()
-        
-        # 2. Pull changes
-        await self._pull_changes()
-        
-        # 3. Update dependencies
-        await self._update_dependencies()
-        
-        # 4. Validate update
-        if not await self._validate_update():
-            await self._rollback(backup_path)
-            return False
-        
-        # 5. Notify users
-        await self._notify_users()
-        
-        return True
-        
-    except Exception as e:
-        logger.error(f"Update failed: {e}")
-        await self._rollback(backup_path)
-        return False
 ```
 
 ### Testing Guidelines
