@@ -919,8 +919,6 @@ async def process_back_to_currency_selection(callback: CallbackQuery):
 
 async def main():
 	"""Главная функция с улучшенными настройками"""
-	global last_activity_time
-	
 	logger.info("🚀 Запуск бота конвертации валют...")
 	
 	# Устанавливаем команды бота
