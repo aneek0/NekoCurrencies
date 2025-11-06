@@ -12,11 +12,10 @@ A Telegram bot that automatically recognizes currency amounts in text messages a
 
 - **🔄 Keep-Alive System**: Added automatic connection monitoring to prevent bot "sleeping"
 - **📊 Bot Monitoring**: New monitoring system with automatic restart capabilities
-- **🔄 Auto-Update System**: Automatic updates with user notifications
 - **🚀 Performance Optimizations**: Enhanced polling settings and connection management
 - **📝 Improved Logging**: Detailed logging with file output for better debugging
 - **HTTP Client Migration**: Upgraded from `aiohttp` to `httpx` for better performance and HTTP/2 support
-- **New API Source**: Added NBRB (Belarus National Bank) API for official BYN rates (backup source)
+- **New API Source**: Added NBRB (Belarus National Bank) API for official BYN rates (primary source)
 - **Performance Improvements**: Faster API requests and better resource management
 - **Modern Dependencies**: Using the latest and most efficient Python libraries
 
@@ -96,8 +95,7 @@ python bot_monitor.py
 - `/start` - Main menu
 - `/help` - Help and usage guide  
 - `/settings` - Configure bot preferences
-- `/version` - Show bot version and update status
-- `/update` - Manual update (admin only)
+- `/version` - Show bot version
 
 ## 🔧 Configuration
 
@@ -211,44 +209,6 @@ Output: ₽300
 4. **Fallback Rates** (Offline)
    - Approximate rates
    - Works without internet
-
-## 🔄 Auto-Update System
-
-### Automatic Updates
-
-The bot includes an intelligent auto-update system that:
-
-#### Features
-- **🔄 Git Integration**: Automatically pulls updates from git repository
-- **📦 Dependency Management**: Installs new dependencies when needed
-- **📤 User Notifications**: Notifies all users about updates
-- **🔄 Auto-Restart**: Restarts bot after successful updates
-- **📊 Version Tracking**: Tracks current version and update history
-- **🛡️ Backup System**: Creates backups before updates
-
-#### How It Works
-1. **Check for Updates**: Every hour, the bot checks for new commits
-2. **Download Updates**: If updates found, pulls latest changes from git
-3. **Install Dependencies**: Updates requirements.txt if changed
-4. **Notify Users**: Sends update notification to all users
-5. **Restart Bot**: Gracefully restarts with new version
-
-#### Commands
-- `/version` - Show current version and update status
-- `/update` - Manual update (admin only)
-
-#### Configuration
-Edit `update_config.json` to customize update behavior:
-```json
-{
-  "update_settings": {
-    "check_interval": 3600,
-    "auto_update": true,
-    "notify_users": true,
-    "admin_ids": [123456789]
-  }
-}
-```
 
 ## 📄 License
 
