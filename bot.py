@@ -32,6 +32,10 @@ else:
     except ImportError:
         pass  # Используем стандартный event loop
 
+# Создаём папку для логов, если её нет
+os.makedirs('logs', exist_ok=True)
+os.makedirs('data', exist_ok=True)
+
 # Настройка логирования с более детальной информацией
 logging.basicConfig(
     level=logging.INFO,
@@ -1023,6 +1027,9 @@ def show_startup_menu():
 
 def setup_logging(debug_mode=False):
     """Настройка логирования в зависимости от режима"""
+    # Создаём папку для логов, если её нет
+    os.makedirs('logs', exist_ok=True)
+    
     level = logging.DEBUG if debug_mode else logging.INFO
     format_str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     
