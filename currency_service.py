@@ -35,7 +35,10 @@ class CurrencyService:
     
     async def _get_session(self) -> httpx.AsyncClient:
         if self._session is None:
-            self._session = httpx.AsyncClient(timeout=10.0)  # 10 секунд таймаут
+            # Увеличенный таймаут для медленных API (особенно НБРБ)
+            # connect: 15 сек, read: 30 сек, write: 30 сек, pool: 5 сек
+            timeout = httpx.Timeout(15.0, connect=15.0, read=30.0, write=30.0, pool=5.0)
+            self._session = httpx.AsyncClient(timeout=timeout)
         return self._session
     
     async def close(self):
@@ -104,16 +107,40 @@ class CurrencyService:
             if result:
                 rates, source = result
                 return rates
+            # При ошибке CurrencyFreaks пробуем резервные API
+            if self.api_failures['exchangerate'] < self.max_failures:
+                result = await try_exchangerate()
+                if result:
+                    rates, source = result
+                    return rates
         elif api_source == 'exchangerate':
             result = await try_exchangerate()
             if result:
                 rates, source = result
                 return rates
+            # При ошибке ExchangeRate пробуем резервные API
+            if self.api_failures['currencyfreaks'] < self.max_failures:
+                result = await try_currencyfreaks()
+                if result:
+                    rates, source = result
+                    return rates
         elif api_source == 'nbrb':
             result = await try_nbrb()
             if result:
                 rates, source = result
                 return rates
+            # При ошибке НБРБ пробуем резервные API
+            print("⚠️ НБРБ недоступен, переключаемся на резервные API...")
+            if self.api_failures['currencyfreaks'] < self.max_failures:
+                result = await try_currencyfreaks()
+                if result:
+                    rates, source = result
+                    return rates
+            if self.api_failures['exchangerate'] < self.max_failures:
+                result = await try_exchangerate()
+                if result:
+                    rates, source = result
+                    return rates
         else:  # auto
             # 1. Пробуем НБРБ (основной для фиатных валют)
             if self.api_failures['nbrb'] < self.max_failures:
@@ -201,14 +228,34 @@ class CurrencyService:
             result = await try_currencyfreaks()
             if result:
                 return result
+            # При ошибке CurrencyFreaks пробуем резервные API
+            if self.api_failures['exchangerate'] < self.max_failures:
+                result = await try_exchangerate()
+                if result:
+                    return result
         elif api_source == 'exchangerate':
             result = await try_exchangerate()
             if result:
                 return result
+            # При ошибке ExchangeRate пробуем резервные API
+            if self.api_failures['currencyfreaks'] < self.max_failures:
+                result = await try_currencyfreaks()
+                if result:
+                    return result
         elif api_source == 'nbrb':
             result = await try_nbrb()
             if result:
                 return result
+            # При ошибке НБРБ пробуем резервные API
+            print("⚠️ НБРБ недоступен, переключаемся на резервные API...")
+            if self.api_failures['currencyfreaks'] < self.max_failures:
+                result = await try_currencyfreaks()
+                if result:
+                    return result
+            if self.api_failures['exchangerate'] < self.max_failures:
+                result = await try_exchangerate()
+                if result:
+                    return result
         else:  # auto
             # 1. Пробуем НБРБ (основной для фиатных валют)
             if self.api_failures['nbrb'] < self.max_failures:
@@ -222,14 +269,14 @@ class CurrencyService:
                 result = await try_currencyfreaks()
                 if result:
                     rates, source = result
-                    return rates
+                    return rates, source
             
             # 3. Пробуем ExchangeRate-API (резервный)
             if self.api_failures['exchangerate'] < self.max_failures:
                 result = await try_exchangerate()
                 if result:
                     rates, source = result
-                    return rates
+                    return rates, source
 
         # Если все API не сработали, возвращаем пустой словарь
         print("❌ Все API источники недоступны")
@@ -259,8 +306,16 @@ class CurrencyService:
             else:
                 print(f"❌ CurrencyFreaks API Error: {response.status_code}")
                 return None
+        except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.ConnectError) as e:
+            error_type = type(e).__name__
+            print(f"❌ CurrencyFreaks API {error_type}: Превышено время ожидания или ошибка соединения")
+            return None
+        except httpx.HTTPStatusError as e:
+            print(f"❌ CurrencyFreaks API HTTP Error: {e.response.status_code}")
+            return None
         except Exception as e:
-            print(f"❌ CurrencyFreaks API Exception: {e}")
+            error_type = type(e).__name__
+            print(f"❌ CurrencyFreaks API Exception ({error_type}): {str(e)}")
             return None
 
     async def _get_exchangerate_rates(self, base_currency: str = 'USD') -> Optional[Dict]:
@@ -284,8 +339,16 @@ class CurrencyService:
             else:
                 print(f"❌ ExchangeRate-API Error: {response.status_code}")
                 return None
+        except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.ConnectError) as e:
+            error_type = type(e).__name__
+            print(f"❌ ExchangeRate-API {error_type}: Превышено время ожидания или ошибка соединения")
+            return None
+        except httpx.HTTPStatusError as e:
+            print(f"❌ ExchangeRate-API HTTP Error: {e.response.status_code}")
+            return None
         except Exception as e:
-            print(f"❌ ExchangeRate-API Exception: {e}")
+            error_type = type(e).__name__
+            print(f"❌ ExchangeRate-API Exception ({error_type}): {str(e)}")
             return None
 
     async def _get_nbrb_rates(self, base_currency: str = 'USD') -> Optional[Dict]:
@@ -357,11 +420,18 @@ class CurrencyService:
                 print(f"🔍 НБРБ курсы (база {base_currency}): BYN={rates.get('BYN', 0):.4f}, USD={rates.get('USD', 0):.4f}")
                 return rates
                     
+        except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.ConnectError) as e:
+            # Специфичная обработка сетевых ошибок
+            error_type = type(e).__name__
+            print(f"❌ НБРБ API {error_type}: Превышено время ожидания или ошибка соединения")
+            return None
+        except httpx.HTTPStatusError as e:
+            print(f"❌ НБРБ API HTTP Error: {e.response.status_code}")
+            return None
         except Exception as e:
-            print(f"❌ НБРБ API Exception: {e}")
-            print(f"🔍 Детали ошибки: {type(e).__name__}")
-            import traceback
-            traceback.print_exc()
+            # Общая обработка остальных ошибок
+            error_type = type(e).__name__
+            print(f"❌ НБРБ API Exception ({error_type}): {str(e)}")
             return None
 
     def _get_cached_source(self, cache_key: str) -> str:
