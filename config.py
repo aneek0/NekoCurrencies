@@ -4,7 +4,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Telegram Bot Token
-BOT_TOKEN = os.getenv('BOT_TOKEN')
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+if not BOT_TOKEN:
+    raise SystemExit("BOT_TOKEN not set in environment/.env")
 
 # Admin IDs (comma-separated list)
 ADMIN_IDS = [int(x.strip()) for x in os.getenv('ADMIN_IDS', '').split(',') if x.strip()]
@@ -244,7 +246,7 @@ CURRENCY_ALIASES = {
 
 # Processing modes
 PROCESSING_MODES = {
-    'simplified': 'Упрощенный режим',
-    'standard': 'Стандартный режим', 
-    'advanced': 'Расширенный режим'
-} 
+'simplified': 'Упрощенный режим',
+'standard': 'Стандартный режим',
+'advanced': 'Расширенный режим'
+}

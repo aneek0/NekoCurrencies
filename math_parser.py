@@ -1,5 +1,4 @@
 import re
-import ast
 from typing import Optional, Tuple
 
 class MathParser:
@@ -137,8 +136,8 @@ class MathParser:
             
             # Вычисляем выражение безопасно
             try:
-                result = ast.literal_eval(clean_expr)
-            except (ValueError, SyntaxError):
+                result = eval(clean_expr, {"__builtins__": {}}, {})
+            except (ValueError, SyntaxError, ZeroDivisionError, NameError):
                 return None
             
             # Проверяем, что результат - число

@@ -132,9 +132,9 @@ def get_api_source_keyboard(current_source: str = "auto", lang: str = 'ru') -> I
 def get_processing_mode_keyboard(current_mode: str = "standard", lang: str = 'ru') -> InlineKeyboardMarkup:
 	keyboard = InlineKeyboardMarkup(inline_keyboard=[])
 	modes = {
-		"simple": "Упрощенный" if lang=='ru' else "Simple",
-		"standard": "Стандартный" if lang=='ru' else "Standard", 
-		"extended": "Расширенный" if lang=='ru' else "Extended"
+		"simplified": "Упрощенный" if lang=='ru' else "Simplified",
+		"standard": "Стандартный" if lang=='ru' else "Standard",
+		"advanced": "Расширенный" if lang=='ru' else "Advanced"
 	}
 	for mode_key, mode_name in modes.items():
 		icon = "✅" if mode_key == current_mode else "❌"

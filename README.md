@@ -1,215 +1,88 @@
-# 💱 Currency Converter Bot
+# 💱 NekoCurrencies
 
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/aaa22b4f5676498f869ebd9325a1edf0)](https://app.codacy.com/gh/aneek0/NekoCurrencies/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+Telegram-бот для автоматического распознавания валютных сумм в тексте и конвертации через актуальные курсы.
 
-## 🌐 Other Languages
+## Возможности
 
-- [Русский](README-ru.md) - Russian documentation 
+- **Распознавание валют** в тексте: `100 долларов`, `50€`, `1000 рублей`, `0.5 биткоин`
+- **Математические выражения**: `(20 + 5) * 4 доллара` → `$100`
+- **150+ фиатных валют**, 25+ криптовалют
+- **3 режима обработки**: упрощённый, стандартный, расширенный (W2N/M2N)
+- **Настраиваемые целевые валюты** — выберите во что конвертировать
+- **Инлайн-режим** — используйте в любом чате через @username
+- **Два языка**: русский и английский
 
-A Telegram bot that automatically recognizes currency amounts in text messages and converts them to other currencies using real-time exchange rates.
-
-## 🆕 Recent Updates
-
-- **🔄 Keep-Alive System**: Added automatic connection monitoring to prevent bot "sleeping"
-- **📊 Bot Monitoring**: New monitoring system with automatic restart capabilities
-- **🚀 Performance Optimizations**: Enhanced polling settings and connection management
-- **📝 Improved Logging**: Detailed logging with file output for better debugging
-- **HTTP Client Migration**: Upgraded from `aiohttp` to `httpx` for better performance and HTTP/2 support
-- **New API Source**: Added NBRB (Belarus National Bank) API for official BYN rates (primary source)
-- **Performance Improvements**: Faster API requests and better resource management
-- **Modern Dependencies**: Using the latest and most efficient Python libraries
-
-## 🌟 Features
-
-- **Smart Text Recognition**: Automatically detects numbers and currencies in messages
-- **Mathematical Expressions**: Supports calculations like "(20 + 5) * 4 dollars" → "$100"
-- **150+ Fiat Currencies**: USD, EUR, RUB, UAH, BYN, KZT, and many more
-- **25+ Cryptocurrencies**: BTC, ETH, USDT, BNB, ADA, SOL, and others
-- **Real-time Rates**: Uses CurrencyFreaks API with fallback rates
-- **Multiple Processing Modes**: Simplified, Standard, and Advanced with W2N/M2N support
-- **Customizable Targets**: Choose which currencies to convert to
-- **Inline Mode**: Use in any chat with @username
-- **Multi-language**: Russian and English interface
-- **Smart Caching**: Efficient API usage with intelligent fallbacks
-- **JSON Database**: Simple and portable user data storage
-
-## 🚀 Quick Start
-
-1. **Send a message** with amount and currency:
-   ```
-   100 dollars
-   50€
-   1000 rubles
-   0.5 bitcoin
-   ```
-
-2. **Bot automatically converts** to your selected target currencies
-
-3. **Use inline mode** in any chat:
-   ```
-   @your_bot 25 USD
-   ```
-
-## ⚙️ Setup
-
-### Environment Variables
-Copy `.env.example` to `.env` and fill in your values:
+## Быстрый старт
 
 ```bash
-cp .env.example .env
-```
-
-Then edit `.env` file with your actual values:
-```env
-BOT_TOKEN=your_telegram_bot_token
-CURRENCY_FREAKS_API_KEY=your_api_key
-EXCHANGE_RATE_API_KEY=your_backup_api_key
-```
-
-### Installation
-```bash
-# 1. Clone the repository
-git clone <your-repo-url>
+# 1. Клонировать
+git clone https://github.com/aneek0/NekoCurrencies.git
 cd NekoCurrencies
 
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Set up environment variables
+# 2. Настроить окружение
 cp .env.example .env
-# Edit .env file with your actual values
+# Заполнить .env: BOT_TOKEN, API-ключи
 
-# 4. Run the bot
-# Option 1: Simple start
-python bot.py
+# 3. Установить зависимости
+uv sync
 
-# Option 2: Start with monitoring (recommended)
-python start_bot.py
-
-# Option 3: Direct monitoring
-python bot_monitor.py
+# 4. Запустить
+uv run python bot.py
 ```
 
-## 📱 Commands
+## Переменные окружения
 
-- `/start` - Main menu
-- `/help` - Help and usage guide  
-- `/settings` - Configure bot preferences
-- `/version` - Show bot version
+| Переменная | Обязательная | Описание |
+|---|---|---|
+| `BOT_TOKEN` | ✅ | Токен Telegram-бота (@BotFather) |
+| `CURRENCY_FREAKS_API_KEY` | ❌ | API-ключ CurrencyFreaks (фоллбек для крипты) |
+| `EXCHANGE_RATE_API_KEY` | ❌ | API-ключ ExchangeRate-API (резерв) |
+| `ADMIN_IDS` | ❌ | ID администраторов через запятую |
 
-## 🔧 Configuration
+## Источники курсов
 
-### Processing Modes
-- **Simplified**: Only processes messages starting with numbers
-- **Standard**: Processes all messages without W2N/M2N
-- **Advanced**: Full processing with W2N (words to numbers) and M2N (money to numbers)
+Приоритет (при `api_source=auto`):
 
-### API Sources
-- **Auto**: Automatically selects best available API
-- **CurrencyFreaks**: Primary API (recommended)
-- **ExchangeRate-API**: Fallback API
-- **NBRB**: Belarus National Bank API (official rates)
+1. **НБРБ** — основной источник для фиатных валют (официальные курсы BYN)
+2. **CurrencyFreaks** — фоллбек для криптовалют и валют вне НБРБ
+3. **ExchangeRate-API** — резервный источник
 
-### Appearance
-- Toggle currency flags, codes, and symbols
-- Compact mode for cryptocurrencies
-- Debug mode shows data sources
+Пользователь может выбрать конкретный источник в `/settings`.
 
-## ⚡ Performance & Reliability
+## Команды
 
-The bot automatically applies performance optimizations:
-- **Unix/Linux/macOS**: Uses `uvloop` for faster event loop
-- **Windows**: Uses `WindowsProactorEventLoopPolicy` for better performance
-- **Keep-Alive**: Automatic connection monitoring prevents bot "sleeping"
-- **Auto-Restart**: Monitoring system automatically restarts bot if needed
-- **Health Checks**: Regular monitoring of memory and CPU usage
-- **Graceful Shutdown**: Proper cleanup of resources on exit
+- `/start` — главное меню
+- `/help` — справка
+- `/settings` — настройки (режим, валюты, API, язык, внешний вид)
+- `/version` — версия
 
-## 🌐 Other Languages
+## Структура проекта
 
-- [Русский](README-ru.md) - Russian documentation
-
-## 💡 Usage Examples
-
-### Basic Conversion
 ```
-Input: "100 dollars"
-Output: 
-🇺🇸100 USD
-
-🇪🇺85.00€ EUR
-🇷🇺8000.00₽ RUB
-🇺🇦4100.00₴ UAH
-🇧🇾300.00Br BYN
+bot.py              — хендлеры, роутинг, запуск
+currency_service.py — получение курсов, конвертация, парсинг текста
+database.py         — SQLite-хранилище пользователей
+math_parser.py      — вычисление математических выражений
+keyboards.py        — inline-клавиатуры
+localization.py     — тексты (ru/en)
+config.py           — константы, алиасы валют, API-ключи
+tests/              — тесты (pytest)
 ```
 
-### Cryptocurrency
-```
-Input: "0.5 bitcoin"
-Output:
-₿0.5 BTC
+## Тесты
 
-🇺🇸22500.00$ USD
-🇪🇺19125.00€ EUR
-🇷🇺1800000.00₽ RUB
-💎7500.00 ETH
+```bash
+uv run pytest tests/ -v
 ```
 
-### Mathematical Expressions
-```
-Input: "(20 + 5) * 4 dollars"
-Output: $100
+## Технологии
 
-Input: "100 + 200 + 300 euros"
-Output: €600
+- **Python 3.13+**
+- **aiogram 3.x** — Telegram Bot API
+- **httpx** — HTTP-клиент
+- **sqlite3** — база данных (WAL mode)
+- **uv** — менеджер зависимостей
 
-Input: "(1000 - 100) / 3 rubles"
-Output: ₽300
-```
+## Лицензия
 
-### Inline Mode
-```
-@your_bot 25 USD
-→ Shows conversion results to select
-```
-
-## 📊 Supported Formats
-
-### Numbers
-- `100`, `100.50`, `100,50`
-- `100 000`, `100,000`
-- `1k`, `1kk` (thousands/millions)
-
-### Currencies
-- **Codes**: USD, EUR, BTC
-- **Symbols**: $, €, ₿, ₽, ₴
-- **Names**: dollar, euro, bitcoin
-- **Slang**: buck, green, bitcoin
-
-### Text Processing
-- **W2N**: "twenty five dollars" → 25 USD
-- **M2N**: "hundred euros" → 100 EUR
-
-## 🔄 Exchange Rate Sources
-
-1. **CurrencyFreaks API** (Primary)
-   - Real-time rates
-   - 150+ currencies
-   - 5-minute updates
-
-2. **ExchangeRate-API** (Fallback)
-   - Backup source
-   - 170+ currencies
-
-3. **NBRB API** (Belarus National Bank)
-   - Official Belarus rates
-   - Free access
-   - Backup source (may be slow)
-
-4. **Fallback Rates** (Offline)
-   - Approximate rates
-   - Works without internet
-
-## 📄 License
-
-This project is licensed under the MIT License.
+MIT

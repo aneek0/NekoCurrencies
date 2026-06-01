@@ -56,9 +56,17 @@ users.json
 *.log
 logs/
 
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
 # Temporary files
 *.tmp
-*.temp 
+*.temp
+
+# UV
+.venv/
 
 #Ignore cursor AI rules
 .cursor\rules\codacy.mdc
