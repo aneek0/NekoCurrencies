@@ -1,3 +1,0 @@
-# Игнорируем ложные срабатывания subprocess в update_manager.py
-# Используем статические строки, поэтому это безопасно
-python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
