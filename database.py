@@ -99,7 +99,7 @@ class UserDatabase:
         self._update(user_id, **mapped)
 
     _VALID_MODES = {'simplified', 'standard', 'advanced'}
-    _VALID_API_SOURCES = {'auto', 'nbrb', 'currencyfreaks', 'exchangerate'}
+    _VALID_API_SOURCES = {'auto', '1', '2', '3', '4'}
 
     def set_processing_mode(self, user_id: int, mode: str):
         if mode not in self._VALID_MODES:

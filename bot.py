@@ -318,7 +318,7 @@ async def process_api_source_callback(callback: CallbackQuery):
 async def process_set_api_callback(callback: CallbackQuery):
     user_id = callback.from_user.id
     source = callback.data.split("set_api_")[1]
-    if source not in ("auto", "currencyfreaks", "exchangerate", "nbrb"):
+    if source not in ("auto", "1", "2", "3", "4"):
         await callback.answer("Некорректный источник")
         return
     services.db.set_api_source(user_id, source)

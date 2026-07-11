@@ -107,27 +107,28 @@ def get_settings_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
 	return keyboard
 
 def get_api_source_keyboard(current_source: str = "auto", lang: str = 'ru') -> InlineKeyboardMarkup:
-	"""Клавиатура выбора источника курсов"""
-	keyboard = InlineKeyboardMarkup(inline_keyboard=[])
-	options = [
-		("auto", "Авто (лучший доступный)" if lang=='ru' else "Auto (best available)"),
-		("currencyfreaks", "CurrencyFreaks (основной)" if lang=='ru' else "CurrencyFreaks (primary)"),
-		("exchangerate", "ExchangeRate-API (резервный)" if lang=='ru' else "ExchangeRate-API (fallback)"),
-		("nbrb", "НБРБ (официальные курсы)" if lang=='ru' else "NBRB (official rates)")
-	]
-	for key, name in options:
-		icon = "✅" if key == current_source else "❌"
-		keyboard.inline_keyboard.append([
-			InlineKeyboardButton(
-				text=f"{icon} {name}",
-				callback_data=f"set_api_{key}"
-			)
-		])
-	back_text = "⬅️ Назад к настройкам" if lang=='ru' else "⬅️ Back to settings"
-	keyboard.inline_keyboard.append([
-		InlineKeyboardButton(text=back_text, callback_data="back_to_settings")
-	])
-	return keyboard
+    """Клавиатура выбора источника курсов с цифрами приоритета."""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+    options = [
+        ("auto", "🔄 Авто (по приоритету)" if lang=='ru' else "🔄 Auto (by priority)"),
+        ("1", "1️⃣ Frankfurter (84 банка)" if lang=='ru' else "1️⃣ Frankfurter (84 banks)"),
+        ("2", "2️⃣ НБРБ (официальные)" if lang=='ru' else "2️⃣ NBRB (official)"),
+        ("3", "3️⃣ CurrencyFreaks (фоллбек)" if lang=='ru' else "3️⃣ CurrencyFreaks (fallback)"),
+        ("4", "4️⃣ ExchangeRate-API (резервный)" if lang=='ru' else "4️⃣ ExchangeRate-API (fallback)"),
+    ]
+    for key, name in options:
+        icon = "✅" if key == current_source else "❌"
+        keyboard.inline_keyboard.append([
+            InlineKeyboardButton(
+                text=f"{icon} {name}",
+                callback_data=f"set_api_{key}"
+            )
+        ])
+    back_text = "⬅️ Назад к настройкам" if lang=='ru' else "⬅️ Back to settings"
+    keyboard.inline_keyboard.append([
+        InlineKeyboardButton(text=back_text, callback_data="back_to_settings")
+    ])
+    return keyboard
 
 def get_processing_mode_keyboard(current_mode: str = "standard", lang: str = 'ru') -> InlineKeyboardMarkup:
 	keyboard = InlineKeyboardMarkup(inline_keyboard=[])

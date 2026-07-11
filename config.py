@@ -19,6 +19,9 @@ CURRENCY_FREAKS_BASE_URL = "https://api.currencyfreaks.com/v2.0/rates/latest"
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API_KEY')
 EXCHANGE_RATE_BASE_URL = "https://v6.exchangerate-api.com/v6"
 
+# Frankfurter API (бесплатный, 84 центральных банка, 200+ валют)
+FRANKFURTER_BASE_URL = "https://api.frankfurter.dev/v2"
+
 # НБРБ API (белорусский источник)
 NBRB_BASE_URL = "https://www.nbrb.by/api"
 
@@ -244,9 +247,18 @@ CURRENCY_ALIASES = {
 	'лусд': 'LUSD'
 }
 
+# API priority (lower number = higher priority in auto mode)
+# Users can override via /settings → API source by selecting a number
+API_PRIORITY = {
+    'frankfurter': 1,
+    'nbrb': 2,
+    'currencyfreaks': 3,
+    'exchangerate': 4,
+}
+
 # Processing modes
 PROCESSING_MODES = {
-'simplified': 'Упрощенный режим',
-'standard': 'Стандартный режим',
-'advanced': 'Расширенный режим'
+    'simplified': 'Упрощенный режим',
+    'standard': 'Стандартный режим',
+    'advanced': 'Расширенный режим'
 }

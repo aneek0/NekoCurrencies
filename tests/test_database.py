@@ -2,6 +2,7 @@
 
 import pytest
 from database import UserDatabase
+from currency_service import CurrencyService
 
 
 @pytest.fixture
@@ -39,14 +40,42 @@ class TestProcessingMode:
 
 
 class TestApiSource:
-    def test_set_source(self, db):
+    def test_set_source_nbrb(self, db):
         db.get_user(1)
-        db.set_api_source(1, 'nbrb')
-        assert db.get_api_source(1) == 'nbrb'
+        db.set_api_source(1, '1')
+        assert db.get_api_source(1) == '1'
+
+    def test_set_source_frankfurter(self, db):
+        db.get_user(1)
+        db.set_api_source(1, '2')
+        assert db.get_api_source(1) == '2'
+
+    def test_set_source_currencyfreaks(self, db):
+        db.get_user(1)
+        db.set_api_source(1, '3')
+        assert db.get_api_source(1) == '3'
+
+    def test_set_source_exchangerate(self, db):
+        db.get_user(1)
+        db.set_api_source(1, '4')
+        assert db.get_api_source(1) == '4'
+
+    def test_set_source_auto(self, db):
+        db.get_user(1)
+        db.set_api_source(1, 'auto')
+        assert db.get_api_source(1) == 'auto'
 
     def test_invalid_source(self, db):
         with pytest.raises(ValueError):
             db.set_api_source(1, 'invalid')
+
+    def test_old_names_rejected(self, db):
+        """Старые имена (nbrb, currencyfreaks, exchangerate) должны отклоняться."""
+        db.get_user(1)
+        with pytest.raises(ValueError):
+            db.set_api_source(1, 'nbrb')
+        with pytest.raises(ValueError):
+            db.set_api_source(1, 'currencyfreaks')
 
 
 class TestDebugMode:

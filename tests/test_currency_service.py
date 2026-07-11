@@ -1,6 +1,8 @@
 """Тесты для CurrencyService: resolve_currency, extract_number_and_currency."""
 
 import pytest
+import asyncio
+from unittest.mock import AsyncMock, patch
 from currency_service import CurrencyService
 
 
@@ -150,3 +152,113 @@ class TestWordsToNumber:
 
     def test_none(self, cs):
         assert cs.words_to_number("hello world") is None
+
+
+class TestFrankfurterFetch:
+    """Тесты для _fetch_frankfurter."""
+
+    @pytest.mark.asyncio
+    async def test_success(self, cs):
+        """Успешный ответ Frankfurter — массив {date, base, quote, rate}."""
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.json = lambda: [
+            {"date": "2026-06-19", "base": "USD", "quote": "EUR", "rate": 0.87042},
+            {"date": "2026-06-19", "base": "USD", "quote": "GBP", "rate": 0.75456},
+            {"date": "2026-06-19", "base": "USD", "quote": "JPY", "rate": 161.14},
+        ]
+        with patch("httpx.AsyncClient.get", return_value=mock_response):
+            result = await cs._fetch_frankfurter("USD")
+        assert result is not None
+        assert result["EUR"] == 0.87042
+        assert result["GBP"] == 0.75456
+        assert result["JPY"] == 161.14
+        assert result["USD"] == 1.0  # base added automatically
+
+    @pytest.mark.asyncio
+    async def test_404(self, cs):
+        """404 от Frankfurter — возвращает None."""
+        mock_response = AsyncMock()
+        mock_response.status_code = 404
+        with patch("httpx.AsyncClient.get", return_value=mock_response):
+            result = await cs._fetch_frankfurter("XXX")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_empty_response(self, cs):
+        """Пустой ответ — возвращает None."""
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.json = lambda: []
+        with patch("httpx.AsyncClient.get", return_value=mock_response):
+            result = await cs._fetch_frankfurter("USD")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_exception(self, cs):
+        """Исключение — возвращает None."""
+        with patch("httpx.AsyncClient.get", side_effect=Exception("network error")):
+            result = await cs._fetch_frankfurter("USD")
+        assert result is None
+
+
+class TestBuildChain:
+    """Тесты для _build_chain и приоритета API."""
+
+    def test_auto_sorted_by_priority(self, cs):
+        """В auto режиме источники сортируются по API_PRIORITY."""
+        chain = cs._build_chain("auto", "USD")
+        names = [n for n, _ in chain]
+        assert names == ["frankfurter", "nbrb", "currencyfreaks", "exchangerate"]
+
+    def test_specific_source_is_first(self, cs):
+        """При выборе конкретного источника он идёт первым."""
+        chain = cs._build_chain("1", "USD")
+        names = [n for n, _ in chain]
+        assert names[0] == "frankfurter"
+
+    def test_specific_source_digit_nbrb(self, cs):
+        """Цифра '2' → nbrb первым."""
+        chain = cs._build_chain("2", "EUR")
+        names = [n for n, _ in chain]
+        assert names[0] == "nbrb"
+
+    def test_specific_source_digit_exchangerate(self, cs):
+        """Цифра '4' → exchangerate первым."""
+        chain = cs._build_chain("4", "EUR")
+        names = [n for n, _ in chain]
+        assert names[0] == "exchangerate"
+
+    def test_fallback_is_sorted(self, cs):
+        """Фоллбек (после первичного) тоже отсортирован по приоритету."""
+        chain = cs._build_chain("3", "USD")
+        names = [n for n, _ in chain]
+        # currencyfreaks первый, остальные по приоритету: frankfurter(1), nbrb(2), exchangerate(4)
+        assert names[0] == "currencyfreaks"
+        assert names[1:] == ["frankfurter", "nbrb", "exchangerate"]
+
+
+class TestGetRates:
+    """Тесты для get_rates с кэшированием."""
+
+    @pytest.mark.asyncio
+    async def test_returns_from_cache(self, cs):
+        """Если данные в кэше — возвращает их без HTTP-запроса."""
+        cs.rates_cache["auto:USD"] = (9999999999.0, {"EUR": 0.87, "USD": 1.0})
+        result, source = await cs.get_rates("USD", "auto")
+        assert result == {"EUR": 0.87, "USD": 1.0}
+        assert source.startswith("cache:")
+
+    @pytest.mark.asyncio
+    async def test_digit_source(self, cs):
+        """get_rates с цифрой api_source ('1' = Frankfurter)."""
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.json = lambda: [
+            {"date": "2026-06-19", "base": "USD", "quote": "EUR", "rate": 0.87042},
+        ]
+        with patch("httpx.AsyncClient.get", return_value=mock_response):
+            result, source = await cs.get_rates("USD", "1")
+        assert result is not None
+        assert result["EUR"] == 0.87042
+        assert source == "frankfurter"

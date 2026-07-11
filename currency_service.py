@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Tuple
 from config import (
     CURRENCY_FREAKS_API_KEY, CURRENCY_FREAKS_BASE_URL,
     EXCHANGE_RATE_API_KEY, EXCHANGE_RATE_BASE_URL,
-    NBRB_BASE_URL,
+    NBRB_BASE_URL, FRANKFURTER_BASE_URL, API_PRIORITY,
     FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES
 )
 from word2number import w2n
@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 class CurrencyService:
-    """Сервис конвертации валют. НБРБ — основной источник для фиата.
-    CurrencyFreaks и ExchangeRate-API — фоллбек для крипты и валют вне НБРБ."""
+    """Сервис конвертации валют. Frankfurter — основной источник курсов для фиата.
+    НБРБ, CurrencyFreaks и ExchangeRate-API — фоллбек для крипты и валют вне Frankfurter."""
 
     def __init__(self):
         self.currencyfreaks_api_key = CURRENCY_FREAKS_API_KEY
@@ -25,11 +25,12 @@ class CurrencyService:
         self.exchangerate_api_key = EXCHANGE_RATE_API_KEY
         self.exchangerate_base_url = EXCHANGE_RATE_BASE_URL
         self.nbrb_base_url = NBRB_BASE_URL
+        self.frankfurter_base_url = FRANKFURTER_BASE_URL
         self.math_parser = MathParser()
 
         self.rates_cache: Dict[str, Tuple[float, Dict]] = {}
         self.cache_timeout = 600  # 10 минут
-        self.api_failures = {'currencyfreaks': 0, 'exchangerate': 0, 'nbrb': 0}
+        self.api_failures = {'currencyfreaks': 0, 'exchangerate': 0, 'nbrb': 0, 'frankfurter': 0}
         self.max_failures = 3
         self._session: Optional[httpx.AsyncClient] = None
 
@@ -50,7 +51,7 @@ class CurrencyService:
     async def get_rates(self, base_currency: str = 'USD', api_source: str = 'auto'
                         ) -> Tuple[Dict, str]:
         """Получить курсы. Возвращает (rates, source).
-        api_source: 'auto' | 'nbrb' | 'currencyfreaks' | 'exchangerate'"""
+        api_source: 'auto' | '1' (НБРБ) | '2' (Frankfurter) | '3' (CurrencyFreaks) | '4' (ExchangeRate)"""
         cache_key = f"{api_source}:{base_currency}"
         cached = self.rates_cache.get(cache_key)
         if cached:
@@ -75,18 +76,28 @@ class CurrencyService:
 
     def _build_chain(self, api_source: str, base_currency: str
                      ) -> List[Tuple[str, callable]]:
-        """Построить цепочку попыток получения курсов."""
+        """Построить цепочку попыток получения курсов.
+        Приоритет определяется API_PRIORITY из config (меньше число = выше приоритет).
+        api_source может быть 'auto' или цифрой '1'..'4'."""
         all_sources = [
+            ('frankfurter', self._fetch_frankfurter),
             ('nbrb', self._fetch_nbrb),
             ('currencyfreaks', self._fetch_currencyfreaks),
             ('exchangerate', self._fetch_exchangerate),
         ]
 
+        # Маппинг цифр → имена API
+        digit_to_name = {'1': 'frankfurter', '2': 'nbrb', '3': 'currencyfreaks', '4': 'exchangerate'}
+
         if api_source == 'auto':
-            return [(n, lambda f=f, b=base_currency: f(b)) for n, f in all_sources]
+            # Сортируем по приоритету из API_PRIORITY
+            sorted_sources = sorted(all_sources, key=lambda x: API_PRIORITY.get(x[0], 99))
+            return [(n, lambda f=f, b=base_currency: f(b)) for n, f in sorted_sources]
         else:
-            primary = [(n, f) for n, f in all_sources if n == api_source]
-            fallback = [(n, f) for n, f in all_sources if n != api_source]
+            # Преобразуем цифру в имя, если нужно
+            source_name = digit_to_name.get(api_source, api_source)
+            primary = [(n, f) for n, f in all_sources if n == source_name]
+            fallback = [(n, f) for n, f in all_sources if n != source_name]
             return [(n, lambda f=f, b=base_currency: f(b)) for n, f in primary + fallback]
 
     async def _fetch_currencyfreaks(self, base_currency: str) -> Optional[Dict]:
@@ -142,6 +153,34 @@ class CurrencyService:
             return self._convert_base(rates_to_byn, base_currency)
         except Exception as e:
             logger.warning("НБРБ error: %s", e)
+            return None
+
+    async def _fetch_frankfurter(self, base_currency: str) -> Optional[Dict]:
+        """Frankfurter — бесплатный API от 84 центральных банков.
+        Формат ответа: [{date, base, quote, rate}, ...].
+        Конвертируем в нужную базовую валюту."""
+        try:
+            session = await self._get_session()
+            resp = await session.get(f"{self.frankfurter_base_url}/rates",
+                                     params={'base': base_currency})
+            if resp.status_code != 200:
+                logger.warning("Frankfurter HTTP %s", resp.status_code)
+                return None
+
+            data = resp.json()
+            rates: Dict[str, float] = {}
+            for entry in data:
+                quote = entry.get('quote')
+                rate = entry.get('rate')
+                if quote and rate:
+                    rates[quote] = float(rate)
+            rates[base_currency] = 1.0
+
+            if len(rates) <= 1:
+                return None
+            return rates
+        except Exception as e:
+            logger.warning("Frankfurter error: %s", e)
             return None
 
     @staticmethod
