@@ -59,6 +59,8 @@ TEXTS: dict[str, dict[str, str]] = {
         'choose_by_letter': "Выберите валюту, начинающуюся на букву '{letter}':",
         'no_currencies_selected': "⚠️ У вас не выбраны валюты для конвертации!\n\nПожалуйста, настройте валюты в /settings → 💵 Валюты для конвертации",
         'error_processing': "Произошла ошибка при обработке сообщения. Попробуйте еще раз.",
+        'rate_limit': "⏳ Слишком часто! Подождите {seconds} сек. перед следующим запросом.",
+
         'conversion_failed': "Не удалось конвертировать {amount} {from_currency}",
         'inline_help_title': "💡 Как использовать инлайн режим",
         'inline_help_desc': "Напишите сумму и валюту, например: 15 баксов, 1000 рублей",
@@ -172,6 +174,8 @@ TEXTS: dict[str, dict[str, str]] = {
         'choose_by_letter': "Choose a currency starting with '{letter}':",
         'no_currencies_selected': "⚠️ You haven't selected currencies for conversion!\n\nPlease configure currencies in /settings → 💵 Target currencies",
         'error_processing': "An error occurred while processing the message. Try again.",
+        'rate_limit': "⏳ Too fast! Wait {seconds} sec. before the next request.",
+
         'conversion_failed': "Failed to convert {amount} {from_currency}",
         'inline_help_title': "💡 How to use inline mode",
         'inline_help_desc': "Type amount and currency, e.g.: 15 bucks, 1000 rubles",

@@ -11,6 +11,9 @@ if not BOT_TOKEN:
 # Admin IDs (comma-separated list)
 ADMIN_IDS = [int(x.strip()) for x in os.getenv('ADMIN_IDS', '').split(',') if x.strip()]
 
+# Rate limit: минимальный интервал между запросами одного пользователя (секунды)
+RATE_LIMIT_PERIOD = float(os.getenv('RATE_LIMIT_PERIOD', '1.0'))
+
 # CurrencyFreaks API (основной)
 CURRENCY_FREAKS_API_KEY = os.getenv('CURRENCY_FREAKS_API_KEY')
 CURRENCY_FREAKS_BASE_URL = "https://api.currencyfreaks.com/v2.0/rates/latest"

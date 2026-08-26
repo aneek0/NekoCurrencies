@@ -1,17 +1,23 @@
 import asyncio
 import logging
+import math
 import os
 import re
+import time
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
+from aiogram import BaseMiddleware
 from aiogram.types import (
     Message, CallbackQuery, InlineQuery,
     InlineQueryResultArticle, InputTextMessageContent,
 )
 from aiogram.enums import ParseMode
 
-from config import BOT_TOKEN, FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES
+from config import (
+    BOT_TOKEN, FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES,
+    ADMIN_IDS, RATE_LIMIT_PERIOD,
+)
 from currency_service import CurrencyService
 from localization import t
 from keyboards import (
@@ -43,6 +49,42 @@ class Services:
 
 
 services: Services | None = None
+
+
+# ── Rate limit middleware ──────────────────────────────
+
+class RateLimitMiddleware(BaseMiddleware):
+    """Ограничивает частоту запросов: не более одного раза в RATE_LIMIT_PERIOD секунд на пользователя.
+
+    Администраторы (ADMIN_IDS) пропускаются. При превышении лимита
+    пользователю отправляется уведомление, а обработка прерывается.
+    """
+
+    def __init__(self, period: float = RATE_LIMIT_PERIOD):
+        self.period = period
+        self._last: dict[int, float] = {}
+
+    async def __call__(self, handler, event, data):
+        user = getattr(event, "from_user", None)
+        if user is not None:
+            user_id = user.id
+            if user_id not in ADMIN_IDS:
+                now = time.monotonic()
+                last = self._last.get(user_id)
+                if last is not None:
+                    wait = self.period - (now - last)
+                    if wait > 0:
+                        lang = services.db.get_language(user_id) if services else "ru"
+                        try:
+                            await event.answer(
+                                t('rate_limit', lang, seconds=math.ceil(wait)),
+                                show_alert=True,
+                            )
+                        except Exception:
+                            pass
+                        return
+                self._last[user_id] = now
+        return await handler(event, data)
 
 
 # ── Общая логика конвертации (убирает дублирование) ────────
@@ -516,6 +558,12 @@ async def inline_query_handler(inline_query: InlineQuery):
 # ── Регистрация хендлеров ──────────────────────────────────
 
 def register_handlers(dp: Dispatcher):
+    # Rate limit: 1 запрос в секунду на пользователя (админы вне лимита)
+    rate_limit = RateLimitMiddleware()
+    dp.message.middleware(rate_limit)
+    dp.callback_query.middleware(rate_limit)
+    dp.inline_query.middleware(rate_limit)
+
     dp.message.register(cmd_start, Command("start"))
     dp.message.register(cmd_help, Command("help"))
     dp.message.register(cmd_settings, Command("settings"))
