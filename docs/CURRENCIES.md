@@ -40,25 +40,8 @@
 - 🇷🇸 RSD — Serbian Dinar
 - 🇲🇰 MKD — Macedonian Denar
 - 🇦🇱 ALL — Albanian Lek
-- 🇧🇬 BGN — Bulgarian Lev
-- 🇭🇷 HRK — Croatian Kuna
-- 🇪🇪 EEK — Estonian Kroon
-- 🇫🇮 FIM — Finnish Markka
-- 🇫🇷 FRF — French Franc
-- 🇩🇪 DEM — German Mark
-- 🇬🇷 GRD — Greek Drachma
-- 🇮🇪 IEP — Irish Pound
-- 🇮🇹 ITL — Italian Lira
-- 🇱🇻 LVL — Latvian Lats
-- 🇱🇹 LTL — Lithuanian Litas
-- 🇱🇺 LUF — Luxembourg Franc
-- 🇲🇹 MTL — Maltese Lira
-- 🇳🇱 NLG — Dutch Guilder
-- 🇵🇹 PTE — Portuguese Escudo
-- 🇷🇴 ROL — Romanian Leu
-- 🇸🇮 SIT — Slovenian Tolar
-- 🇸🇰 SKK — Slovak Koruna
-- 🇪🇸 ESP — Spanish Peseta
+- 🇷🇴 RON — Romanian Leu
+- 🇧🇦 BAM — Bosnia-Herzegovina Convertible Mark
 
 ### Asia & Pacific
 - 🇭🇰 HKD — Hong Kong Dollar
@@ -69,6 +52,7 @@
 - 🇮🇩 IDR — Indonesian Rupiah
 - 🇵🇭 PHP — Philippine Peso
 - 🇻🇳 VND — Vietnamese Dong
+- 🇱🇦 LAK — Lao Kip
 - 🇰🇭 KHR — Cambodian Riel
 - 🇲🇲 MMK — Myanmar Kyat
 - 🇧🇩 BDT — Bangladeshi Taka
@@ -153,8 +137,7 @@
 - 🇨🇩 CDF — Congolese Franc
 - 🇲🇼 MWK — Malawian Kwacha
 - 🇿🇲 ZMW — Zambian Kwacha
-- 🇿🇼 ZWL — Zimbabwean Dollar
-- 🇧🇦 BAM — Bosnia-Herzegovina Convertible Mark
+
 
 ## ₿ Cryptocurrencies
 
@@ -221,10 +204,13 @@
 
 ## 📊 Exchange Rate Sources
 
-The bot uses **CurrencyFreaks API** for real-time exchange rates with intelligent fallbacks. All rates are updated every 5 minutes with 10-minute caching.
+Приоритет в режиме `auto`:
 
-**Primary Source:** [CurrencyFreaks API](https://currencyfreaks.com/)
+1. **Frankfurter** — фиатные валюты (84 центральных банка, без ключа)
+2. **НБРБ** — официальные курсы BYN (без ключа)
+3. **CurrencyFreaks** — фиат и крипта (нужен API-ключ)
+4. **ExchangeRate-API** — резервный фиатный источник (нужен API-ключ)
+5. **CoinGecko** — крипта к USD (без ключа, неявный фоллбек)
 
-## 🌐 Other Languages
-
-- [Русский](CURRENCIES.ru.md) - Russian documentation 
+Провайдер подбирается под запрошенные валюты: фиатный источник не блокирует
+крипту. Курсы кэшируются на 10 минут; после сбоя провайдер пропускается 60 секунд.

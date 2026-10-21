@@ -70,3 +70,7 @@ htmlcov/
 
 #Ignore cursor AI rules
 .cursor\rules\codacy.mdc
+
+# SQLite WAL sidecars
+*.db-wal
+*.db-shm

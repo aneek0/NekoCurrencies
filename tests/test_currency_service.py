@@ -173,7 +173,7 @@ class TestFrankfurterFetch:
         assert result["EUR"] == 0.87042
         assert result["GBP"] == 0.75456
         assert result["JPY"] == 161.14
-        assert result["USD"] == 1.0  # base added automatically
+        assert "USD" not in result  # база добавляется на уровне _provider_rates
 
     @pytest.mark.asyncio
     async def test_404(self, cs):
@@ -207,47 +207,38 @@ class TestBuildChain:
 
     def test_auto_sorted_by_priority(self, cs):
         """В auto режиме источники сортируются по API_PRIORITY."""
-        chain = cs._build_chain("auto", "USD")
-        names = [n for n, _ in chain]
-        assert names == ["frankfurter", "nbrb", "currencyfreaks", "exchangerate"]
+        chain = cs._build_chain("auto")
+        assert chain == ["frankfurter", "nbrb", "currencyfreaks", "exchangerate", "coingecko"]
 
     def test_specific_source_is_first(self, cs):
         """При выборе конкретного источника он идёт первым."""
-        chain = cs._build_chain("1", "USD")
-        names = [n for n, _ in chain]
-        assert names[0] == "frankfurter"
+        assert cs._build_chain("1")[0] == "frankfurter"
 
     def test_specific_source_digit_nbrb(self, cs):
         """Цифра '2' → nbrb первым."""
-        chain = cs._build_chain("2", "EUR")
-        names = [n for n, _ in chain]
-        assert names[0] == "nbrb"
+        assert cs._build_chain("2")[0] == "nbrb"
 
     def test_specific_source_digit_exchangerate(self, cs):
         """Цифра '4' → exchangerate первым."""
-        chain = cs._build_chain("4", "EUR")
-        names = [n for n, _ in chain]
-        assert names[0] == "exchangerate"
+        assert cs._build_chain("4")[0] == "exchangerate"
 
     def test_fallback_is_sorted(self, cs):
         """Фоллбек (после первичного) тоже отсортирован по приоритету."""
-        chain = cs._build_chain("3", "USD")
-        names = [n for n, _ in chain]
-        # currencyfreaks первый, остальные по приоритету: frankfurter(1), nbrb(2), exchangerate(4)
-        assert names[0] == "currencyfreaks"
-        assert names[1:] == ["frankfurter", "nbrb", "exchangerate"]
+        chain = cs._build_chain("3")
+        assert chain[0] == "currencyfreaks"
+        assert chain[1:] == ["frankfurter", "nbrb", "exchangerate", "coingecko"]
 
 
 class TestGetRates:
-    """Тесты для get_rates с кэшированием."""
+    """Тесты для get_rates: кэш, источник, pair-aware выбор провайдера."""
 
     @pytest.mark.asyncio
     async def test_returns_from_cache(self, cs):
         """Если данные в кэше — возвращает их без HTTP-запроса."""
-        cs.rates_cache["auto:USD"] = (9999999999.0, {"EUR": 0.87, "USD": 1.0})
-        result, source = await cs.get_rates("USD", "auto")
+        cs.rates_cache[("frankfurter", "USD")] = (9999999999.0, {"EUR": 0.87, "USD": 1.0})
+        result, sources = await cs.get_rates("USD", "auto")
         assert result == {"EUR": 0.87, "USD": 1.0}
-        assert source.startswith("cache:")
+        assert sources["EUR"] == "frankfurter"
 
     @pytest.mark.asyncio
     async def test_digit_source(self, cs):
@@ -258,7 +249,52 @@ class TestGetRates:
             {"date": "2026-06-19", "base": "USD", "quote": "EUR", "rate": 0.87042},
         ]
         with patch("httpx.AsyncClient.get", return_value=mock_response):
-            result, source = await cs.get_rates("USD", "1")
-        assert result is not None
+            result, sources = await cs.get_rates("USD", "1")
         assert result["EUR"] == 0.87042
-        assert source == "frankfurter"
+        assert sources["EUR"] == "frankfurter"
+
+    @pytest.mark.asyncio
+    async def test_crypto_required_adds_coingecko_to_fiat_provider(self, cs):
+        """Фиатный провайдер не блокирует крипту: BTC добирается у CoinGecko."""
+        async def fake_get(url, **kwargs):
+            response = AsyncMock()
+            response.status_code = 200
+            if "frankfurter" in str(url):
+                response.json = lambda: [{"quote": "EUR", "rate": 0.87}]
+            elif "coingecko" in str(url):
+                response.json = lambda: {"bitcoin": {"usd": 50000.0}}
+            else:
+                response.json = lambda: {}
+            return response
+
+        with patch("httpx.AsyncClient.get", side_effect=fake_get):
+            rates, sources = await cs.get_rates("USD", "auto", ["EUR", "BTC"])
+
+        assert rates["EUR"] == 0.87
+        assert rates["BTC"] == 2e-5
+        assert sources["EUR"] == "frankfurter"
+        assert sources["BTC"] == "coingecko"
+
+
+class TestRateNormalization:
+    @pytest.mark.asyncio
+    async def test_currencyfreaks_string_rates_become_floats(self, cs):
+        """Строковые курсы CurrencyFreaks не теряются при конвертации."""
+        cs.currencyfreaks_api_key = "test"
+        response = AsyncMock()
+        response.status_code = 200
+        response.json = lambda: {"rates": {"EUR": "0.87", "USD": "1", "BAD": "n/a"}}
+        with patch("httpx.AsyncClient.get", return_value=response):
+            rates = await cs._fetch_currencyfreaks("USD")
+        assert rates == {"EUR": 0.87, "USD": 1.0}
+
+
+class TestRussianNumerals:
+    @pytest.mark.parametrize("text,expected", [
+        ("сто тысяч", 100_000),
+        ("два миллиона триста тысяч", 2_300_000),
+        ("двадцать пять", 25),
+        ("двести тридцать", 230),
+    ])
+    def test_words(self, cs, text, expected):
+        assert cs._russian_words_to_number(text) == expected

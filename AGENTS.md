@@ -2,20 +2,20 @@
 
 ## Проект
 
-Telegram-бот конвертации валют. НБРБ — основной источник курсов для фиата, CurrencyFreaks/ExchangeRate — фоллбек для крипты.
+Telegram-бот конвертации валют. Frankfurter — основной фиатный источник, НБРБ — официальные BYN, CoinGecko — крипта, CurrencyFreaks/ExchangeRate — фоллбек.
 
 ## Структура
 
 | Файл | Назначение | Строк |
 |---|---|---|
-| `bot.py` | Хендлеры, роутинг, `Services`, `main()` | 591 |
-| `currency_service.py` | `CurrencyService` — API, конвертация, парсинг | 494 |
-| `database.py` | `UserDatabase` — SQLite, WAL mode | 202 |
+| `bot.py` | Хендлеры, `ServicesMiddleware`, rate limit, `main()` | 640 |
+| `currency_service.py` | `CurrencyService` — провайдеры, кэш, конвертация, парсинг | 521 |
+| `database.py` | `UserDatabase` — SQLite, WAL, миграции | 212 |
 | `math_parser.py` | `MathParser` — вычисление выражений | 269 |
-| `keyboards.py` | Inline-клавиатуры | 214 |
-| `localization.py` | `TEXTS` dict, `t()` функция | 240 |
-| `config.py` | Константы, алиасы, API-ключи | 251 |
-| `tests/` | pytest-тесты (81 тест) | 383 |
+| `keyboards.py` | Inline-клавиатуры | 204 |
+| `localization.py` | `TEXTS` dict, `t()` функция | 270 |
+| `config.py` | Константы, алиасы, API-ключи | 247 |
+| `tests/` | pytest-тесты (104 теста) | 563 |
 
 ## Запуск
 
@@ -34,10 +34,14 @@ uv run pytest tests/ -v    # тесты
 | `CURRENCY_FREAKS_API_KEY` | ❌ | API-ключ CurrencyFreaks (фоллбек для крипты) |
 | `EXCHANGE_RATE_API_KEY` | ❌ | API-ключ ExchangeRate-API (резерв) |
 | `ADMIN_IDS` | ❌ | ID администраторов через запятую |
+| `RATE_LIMIT_PERIOD` | ❌ | Интервал rate limit, сек (1.0) |
+| `CACHE_LIFETIME` | ❌ | TTL кэша курсов, сек (600) |
+| `LOG_LEVEL`, `LOG_FILE` | ❌ | Логи (INFO, `logs/bot.log`) |
+| `DATABASE_FILE` | ❌ | Путь к SQLite (`data/users.db`) |
 
 ## База данных
 
-SQLite (stdlib `sqlite3`), WAL mode. Файл: `data/users.db`, создаётся автоматически.
+SQLite (stdlib `sqlite3`), WAL mode. Файл: `data/users.db` (env `DATABASE_FILE`), создаётся автоматически. Схема версионируется через `PRAGMA user_version` (`SCHEMA_VERSION = 1`), миграции — в `_migrate()`.
 
 Схема:
 ```sql
@@ -58,19 +62,32 @@ CREATE TABLE users (
 ## API источники курсов
 
 Приоритет в auto-режиме (настраивается в config.py → `API_PRIORITY`):
-1. **Frankfurter** — бесплатный API от 84 центральных банков, 200+ валют (без ключа)
-2. **НБРБ** — основной для фиатных валют Беларуси
-3. **CurrencyFreaks** — фоллбек для крипты
-4. **ExchangeRate-API** — резервный
+1. **Frankfurter** — фиат, 84 центральных банка (без ключа)
+2. **НБРБ** — официальные курсы BYN (без ключа)
+3. **CurrencyFreaks** — фиат и крипта (нужен ключ)
+4. **ExchangeRate-API** — резервный фиат (нужен ключ)
+5. **CoinGecko** — крипта к USD (без ключа, только неявный фоллбек)
 
-Выбор в `/settings` → "Источник курсов" — цифры 1-4 или "auto".
+Выбор в `/settings` → "Источник курсов" — цифры 1-4 или "auto"; выбранный провайдер идёт первым, остальные остаются фоллбеком.
 
-Кэш: 10 минут in-memory. `get_rates()` возвращает `(rates, source)`.
+Провайдер подбирается под `required` валюты: `_PROVIDERS` описывает категории (fiat/crypto), фиатный источник не блокирует крипту.
+
+Кэш: по провайдеру и базе, TTL `CACHE_LIFETIME` (600 с). После сбоя провайдер пропускается 60 с. `get_rates(base, api_source, required)` возвращает `(rates, sources)`, где `sources` — `{code: provider}`.
+
+## CI
+
+`.github/workflows/ci.yml`: на push в `main` и PR — `uv sync --frozen`, pyflakes, `pytest`.
+Локальный эквивалент:
+```bash
+uv sync --frozen
+uv run --with pyflakes python -m pyflakes bot.py config.py currency_service.py database.py keyboards.py localization.py math_parser.py
+uv run pytest -q
+```
 
 ## Валидация
 
 - `processing_mode`: `simplified` | `standard` | `advanced`
-- `api_source`: `auto` | `nbrb` | `currencyfreaks` | `exchangerate`
+- `api_source`: `auto` | `1` | `2` | `3` | `4`
 - `language`: `ru` | `en`
 
 ## Тестирование
@@ -87,14 +104,14 @@ uv run pytest tests/ -x          # остановиться на первом п
 
 ## Code Style
 
-- Python 3.13+, type hints для всех функций
+- Python 3.11+, type hints для всех функций
 - Docstrings для публичных методов
 - `logging` вместо `print()`
 - PEP 8, line-length 100
 
 ## Важные детали
 
-- `BOT_TOKEN` загружается через `os.environ` — падение при отсутствии
+- `BOT_TOKEN` читается при импорте, но проверяется в `main()` — конфиг импортируется без токена (нужно для тестов)
 - `database.py` — синхронный SQLite. Для масштабирования перейти на aiosqlite
 - `math_parser.py` — использует `eval()` с `{"__builtins__": {}}` (безопасно благодаря `_is_safe_expression`)
 - Режимы: `simplified` | `standard` | `advanced` (не `simple`/`extended`)

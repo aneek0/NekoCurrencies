@@ -2,7 +2,6 @@ import asyncio
 import logging
 import math
 import os
-import re
 import time
 
 from aiogram import Bot, Dispatcher, types
@@ -15,10 +14,12 @@ from aiogram.types import (
 from aiogram.enums import ParseMode
 
 from config import (
-    BOT_TOKEN, FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES,
+    BOT_TOKEN, BOT_VERSION, LOG_LEVEL, LOG_FILE,
+    FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES,
     ADMIN_IDS, RATE_LIMIT_PERIOD,
 )
 from currency_service import CurrencyService
+from database import UserDatabase
 from localization import t
 from keyboards import (
     get_main_menu_keyboard, get_letter_keyboard,
@@ -27,38 +28,44 @@ from keyboards import (
     get_currency_selection_keyboard, get_api_source_keyboard, get_debug_mode_keyboard,
     get_language_keyboard, get_appearance_keyboard,
 )
-from localization import t
+
+
+# Целевые валюты для inline, если пользователь ещё не настроил свои
+INLINE_DEFAULT_TARGETS = ('USD', 'EUR', 'RUB', 'BYN', 'BTC')
 
 logger = logging.getLogger(__name__)
 
 
-# ── Сервисы (инициализируются в lifespan) ─────────────────
+# ── Сервисы (инициализируются в main) ──────────────────────
 
 class Services:
     def __init__(self):
         self.bot = Bot(token=BOT_TOKEN)
         self.dp = Dispatcher()
         self.currency = CurrencyService()
-        # Импорт здесь чтобы избежать циклического
-        from database import UserDatabase
         self.db = UserDatabase()
 
     async def close(self):
         await self.currency.close()
         await self.bot.session.close()
+        self.db.close()
 
 
-services: Services | None = None
+class ServicesMiddleware(BaseMiddleware):
+    """Прокидывает Services в data — хендлеры получают его параметром."""
+
+    def __init__(self, services: Services):
+        self.services = services
+
+    async def __call__(self, handler, event, data):
+        data["services"] = self.services
+        return await handler(event, data)
 
 
 # ── Rate limit middleware ──────────────────────────────
 
 class RateLimitMiddleware(BaseMiddleware):
-    """Ограничивает частоту запросов: не более одного раза в RATE_LIMIT_PERIOD секунд на пользователя.
-
-    Администраторы (ADMIN_IDS) пропускаются. При превышении лимита
-    пользователю отправляется уведомление, а обработка прерывается.
-    """
+    """Не более одного запроса в RATE_LIMIT_PERIOD секунд на пользователя."""
 
     def __init__(self, period: float = RATE_LIMIT_PERIOD):
         self.period = period
@@ -66,58 +73,48 @@ class RateLimitMiddleware(BaseMiddleware):
 
     async def __call__(self, handler, event, data):
         user = getattr(event, "from_user", None)
-        if user is not None:
-            user_id = user.id
-            if user_id not in ADMIN_IDS:
-                now = time.monotonic()
-                last = self._last.get(user_id)
-                if last is not None:
-                    wait = self.period - (now - last)
-                    if wait > 0:
-                        lang = services.db.get_language(user_id) if services else "ru"
-                        try:
-                            await event.answer(
-                                t('rate_limit', lang, seconds=math.ceil(wait)),
-                                show_alert=True,
-                            )
-                        except Exception:
-                            pass
-                        return
-                self._last[user_id] = now
+        if user is not None and user.id not in ADMIN_IDS:
+            now = time.monotonic()
+            self._last = {
+                uid: ts for uid, ts in self._last.items() if now - ts < self.period
+            }
+            last = self._last.get(user.id)
+            if last is not None:
+                svc = data.get("services")
+                lang = svc.db.get_language(user.id) if svc else "ru"
+                text = t('rate_limit', lang, seconds=max(1, math.ceil(self.period - (now - last))))
+                await event.answer(text)
+                return
+            self._last[user.id] = now
         return await handler(event, data)
 
 
 # ── Общая логика конвертации (убирает дублирование) ────────
 
-async def try_extract_currency(text: str, use_w2n: bool = False) -> tuple[float, str] | None:
+async def try_extract_currency(text: str, svc: Services,
+                               use_w2n: bool = False) -> tuple[float, str] | None:
     """Попытаться извлечь (число, валюта) из текста."""
-    result = services.currency.extract_number_and_currency(text)
+    result = svc.currency.extract_number_and_currency(text)
     if result:
         return result
 
     if use_w2n:
-        words_number = services.currency.words_to_number(text)
+        words_number = svc.currency.words_to_number(text)
         if words_number:
             for alias, code in CURRENCY_ALIASES.items():
                 if alias in text.lower():
                     return words_number, code
 
-    if use_w2n:
-        result = services.currency.money_to_number(text)
-        if result:
-            return result
-
     return None
 
 
 async def format_conversion_response(amount: float, from_currency: str,
-                                     conversions: dict, user_id: int) -> str:
+                                     conversions: dict, user_id: int,
+                                     svc: Services) -> str:
     """Форматировать результат конвертации в строку."""
-    db = services.db
+    db = svc.db
     prefs = db.get_appearance(user_id)
-    top_flag = services.currency._get_currency_flag(from_currency) if prefs.get('show_flags', True) else ''
-    top_code = f" {from_currency}" if prefs.get('show_codes', True) else ''
-    response = f"{top_flag}{amount}{top_code}\n\n"
+    response = svc.currency.format_currency_amount(amount, from_currency, prefs) + "\n\n"
 
     fiat_results = []
     crypto_results = []
@@ -130,7 +127,7 @@ async def format_conversion_response(amount: float, from_currency: str,
         else:
             converted_amount = info
             source = None
-        formatted = services.currency.format_currency_amount(converted_amount, currency, prefs)
+        formatted = svc.currency.format_currency_amount(converted_amount, currency, prefs)
         if debug_enabled and source:
             formatted = f"{formatted}  (src: {source})"
         if currency in FIAT_CURRENCIES:
@@ -147,10 +144,11 @@ async def format_conversion_response(amount: float, from_currency: str,
     return response
 
 
-async def do_conversion(text: str, user_id: int, use_w2n: bool = False) -> str | None:
+async def do_conversion(text: str, user_id: int, use_w2n: bool = False,
+                        *, svc: Services) -> str | None:
     """Полный цикл: извлечь → проверить → конвертировать → форматировать."""
-    db = services.db
-    result = await try_extract_currency(text, use_w2n)
+    db = svc.db
+    result = await try_extract_currency(text, svc, use_w2n)
     if not result:
         return None
 
@@ -165,63 +163,63 @@ async def do_conversion(text: str, user_id: int, use_w2n: bool = False) -> str |
         targets.remove(from_currency)
 
     api_source = db.get_api_source(user_id)
-    conversions = await services.currency.convert_currency(amount, from_currency, targets, api_source=api_source)
+    conversions = await svc.currency.convert_currency(amount, from_currency, targets, api_source=api_source)
 
     if not conversions:
         return t('conversion_failed', db.get_language(user_id), amount=amount, from_currency=from_currency)
 
-    return await format_conversion_response(amount, from_currency, conversions, user_id)
+    return await format_conversion_response(amount, from_currency, conversions, user_id, svc)
 
 
 # ── Lifespan ────────────────────────────────────────────────
 
 async def on_startup(svc: Services):
     logger.info("Запуск бота...")
-    await svc.bot.set_my_commands([
-        types.BotCommand(command="start", description="🚀 Запустить бота"),
-        types.BotCommand(command="help", description="📖 Справка и помощь"),
-        types.BotCommand(command="settings", description="⚙️ Настройки бота"),
-        types.BotCommand(command="version", description="📋 Версия бота"),
-    ])
+    for lang in ("ru", "en"):
+        await svc.bot.set_my_commands([
+            types.BotCommand(command="start", description=t('cmd_start_desc', lang)),
+            types.BotCommand(command="help", description=t('cmd_help_desc', lang)),
+            types.BotCommand(command="settings", description=t('cmd_settings_desc', lang)),
+            types.BotCommand(command="version", description=t('cmd_version_desc', lang)),
+        ], language_code=lang)
     logger.info("Команды бота установлены")
 
 
 async def on_shutdown(svc: Services):
     logger.info("Завершение работы...")
-    svc.db.close()
-    await svc.currency.close()
-    await svc.bot.session.close()
+    await svc.close()
 
 
 # ── Хендлеры команд ─────────────────────────────────────────
 
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, services: Services):
     lang = services.db.get_language(message.from_user.id)
     await message.answer(t('welcome', lang), reply_markup=get_main_menu_keyboard(lang))
 
 
-async def cmd_help(message: Message):
+async def cmd_help(message: Message, services: Services):
     lang = services.db.get_language(message.from_user.id)
     await message.answer(t('help', lang), reply_markup=get_help_keyboard(lang))
 
 
-async def cmd_settings(message: Message):
+async def cmd_settings(message: Message, services: Services):
     lang = services.db.get_language(message.from_user.id)
     await message.answer(t('settings', lang), reply_markup=get_settings_keyboard(lang))
 
 
-async def cmd_version(message: Message):
-    await message.answer("🤖 **Бот конвертации валют**\n\nВерсия: 1.0.0", parse_mode="Markdown")
+async def cmd_version(message: Message, services: Services):
+    lang = services.db.get_language(message.from_user.id)
+    await message.answer(t('version', lang, version=BOT_VERSION), parse_mode="Markdown")
 
 
 # ── Хендлеры callback ───────────────────────────────────────
 
-async def process_settings_callback(callback: CallbackQuery):
+async def process_settings_callback(callback: CallbackQuery, services: Services):
     lang = services.db.get_language(callback.from_user.id)
     await callback.message.edit_text(t('settings', lang), reply_markup=get_settings_keyboard(lang))
 
 
-async def process_processing_mode_callback(callback: CallbackQuery):
+async def process_processing_mode_callback(callback: CallbackQuery, services: Services):
     user_id = callback.from_user.id
     current_mode = services.db.get_processing_mode(user_id)
     lang = services.db.get_language(callback.from_user.id)
@@ -232,16 +230,16 @@ async def process_processing_mode_callback(callback: CallbackQuery):
     )
 
 
-async def process_currency_selection_callback(callback: CallbackQuery):
+async def process_currency_selection_callback(callback: CallbackQuery, services: Services):
     lang = services.db.get_language(callback.from_user.id)
     await callback.message.edit_text(t('choose_type', lang), reply_markup=get_currency_selection_keyboard(lang))
 
 
-async def process_set_mode_callback(callback: CallbackQuery):
+async def process_set_mode_callback(callback: CallbackQuery, services: Services):
     user_id = callback.from_user.id
     mode = callback.data.split("_")[2]
     if mode not in ("simplified", "standard", "advanced"):
-        await callback.answer("Некорректный режим")
+        await callback.answer(t('invalid_mode', services.db.get_language(user_id)))
         return
     services.db.set_processing_mode(user_id, mode)
     lang = services.db.get_language(callback.from_user.id)
@@ -249,7 +247,7 @@ async def process_set_mode_callback(callback: CallbackQuery):
     await callback.message.edit_text(t('mode_changed', lang), reply_markup=get_back_keyboard("back_to_settings", lang))
 
 
-async def process_back_to_settings_callback(callback: CallbackQuery):
+async def process_back_to_settings_callback(callback: CallbackQuery, services: Services):
     try:
         lang = services.db.get_language(callback.from_user.id)
         await callback.message.edit_text(t('settings', lang), reply_markup=get_settings_keyboard(lang))
@@ -257,7 +255,7 @@ async def process_back_to_settings_callback(callback: CallbackQuery):
         await callback.answer(t('already_here', services.db.get_language(callback.from_user.id)))
 
 
-async def process_back_to_main_callback(callback: CallbackQuery):
+async def process_back_to_main_callback(callback: CallbackQuery, services: Services):
     try:
         lang = services.db.get_language(callback.from_user.id)
         await callback.message.edit_text(t('welcome', lang), reply_markup=get_main_menu_keyboard(lang))
@@ -265,17 +263,17 @@ async def process_back_to_main_callback(callback: CallbackQuery):
         await callback.answer(t('already_main', services.db.get_language(callback.from_user.id)))
 
 
-async def process_currency_type_callback(callback: CallbackQuery):
+async def process_currency_type_callback(callback: CallbackQuery, services: Services):
     currency_type = callback.data.split("_")[0]
     try:
         lang = services.db.get_language(callback.from_user.id)
         text = t('fiat_menu', lang) if currency_type == "fiat" else t('crypto_menu', lang)
         await callback.message.edit_text(text, reply_markup=get_letter_keyboard(currency_type, lang))
     except Exception:
-        await callback.answer("Ошибка при загрузке меню")
+        await callback.answer(t('menu_load_error', services.db.get_language(callback.from_user.id)))
 
 
-async def process_letter_callback(callback: CallbackQuery):
+async def process_letter_callback(callback: CallbackQuery, services: Services):
     parts = callback.data.split("_")
     currency_type = parts[1]
     letter = parts[2]
@@ -289,13 +287,14 @@ async def process_letter_callback(callback: CallbackQuery):
             reply_markup=get_currencies_by_letter_keyboard(currency_type, letter, selected_codes, lang),
         )
     except Exception:
-        await callback.answer("Ошибка при загрузке валют")
+        await callback.answer(t('currencies_load_error', services.db.get_language(callback.from_user.id)))
 
 
-async def process_select_currency_callback(callback: CallbackQuery):
+async def process_select_currency_callback(callback: CallbackQuery, services: Services):
     parts = callback.data.split("_")
     currency_type = parts[2]
-    currency_code = parts[3]
+    letter = parts[3]
+    currency_code = parts[4]
 
     try:
         user_id = callback.from_user.id
@@ -314,32 +313,26 @@ async def process_select_currency_callback(callback: CallbackQuery):
         lang = services.db.get_language(callback.from_user.id)
         await callback.answer(t(f'{action}_currency', lang, name=currency_name))
 
-        # Обновляем страницу
-        current_text = callback.message.text
-        letter_match = re.search(r"['\"]([A-ZА-Я])['\"]", current_text)
-        if letter_match:
-            letter = letter_match.group(1)
-            selected = services.db.get_selected_currencies(user_id)
-            selected_codes = selected['fiat'] if currency_type == 'fiat' else selected['crypto']
-            await callback.message.edit_text(
-                t('choose_by_letter', lang, letter=letter),
-                reply_markup=get_currencies_by_letter_keyboard(currency_type, letter, selected_codes, lang),
-            )
+        selected = services.db.get_selected_currencies(user_id)
+        selected_codes = selected['fiat'] if currency_type == 'fiat' else selected['crypto']
+        await callback.message.edit_text(
+            t('choose_by_letter', lang, letter=letter),
+            reply_markup=get_currencies_by_letter_keyboard(currency_type, letter, selected_codes, lang),
+        )
     except Exception:
-        await callback.answer("Ошибка при изменении валюты")
+        await callback.answer(t('currency_change_error', services.db.get_language(callback.from_user.id)))
 
-
-async def process_back_to_letters_callback(callback: CallbackQuery):
+async def process_back_to_letters_callback(callback: CallbackQuery, services: Services):
     currency_type = callback.data.split("_")[3]
     try:
         lang = services.db.get_language(callback.from_user.id)
         text = t('fiat_menu', lang) if currency_type == "fiat" else t('crypto_menu', lang)
         await callback.message.edit_text(text, reply_markup=get_letter_keyboard(currency_type, lang))
     except Exception:
-        await callback.answer("Ошибка при загрузке меню")
+        await callback.answer(t('menu_load_error', services.db.get_language(callback.from_user.id)))
 
 
-async def process_back_callback(callback: CallbackQuery):
+async def process_back_callback(callback: CallbackQuery, services: Services):
     try:
         lang = services.db.get_language(callback.from_user.id)
         if callback.data == "back_to_fiat":
@@ -350,18 +343,18 @@ async def process_back_callback(callback: CallbackQuery):
         await callback.answer(t('already_here', services.db.get_language(callback.from_user.id)))
 
 
-async def process_api_source_callback(callback: CallbackQuery):
+async def process_api_source_callback(callback: CallbackQuery, services: Services):
     user_id = callback.from_user.id
     current = services.db.get_api_source(user_id)
     lang = services.db.get_language(callback.from_user.id)
     await callback.message.edit_text(t('api_choose', lang), reply_markup=get_api_source_keyboard(current, lang))
 
 
-async def process_set_api_callback(callback: CallbackQuery):
+async def process_set_api_callback(callback: CallbackQuery, services: Services):
     user_id = callback.from_user.id
     source = callback.data.split("set_api_")[1]
     if source not in ("auto", "1", "2", "3", "4"):
-        await callback.answer("Некорректный источник")
+        await callback.answer(t('invalid_source', services.db.get_language(user_id)))
         return
     services.db.set_api_source(user_id, source)
     lang = services.db.get_language(callback.from_user.id)
@@ -369,14 +362,14 @@ async def process_set_api_callback(callback: CallbackQuery):
     await callback.message.edit_text(t('api_changed', lang), reply_markup=get_back_keyboard("back_to_settings", lang))
 
 
-async def process_debug_mode_callback(callback: CallbackQuery):
+async def process_debug_mode_callback(callback: CallbackQuery, services: Services):
     user_id = callback.from_user.id
     enabled = services.db.get_debug_mode(user_id)
     lang = services.db.get_language(callback.from_user.id)
     await callback.message.edit_text(t('debug_title', lang), reply_markup=get_debug_mode_keyboard(enabled, lang))
 
 
-async def process_set_debug_mode(callback: CallbackQuery):
+async def process_set_debug_mode(callback: CallbackQuery, services: Services):
     user_id = callback.from_user.id
     enabled = callback.data == "set_debug_on"
     services.db.set_debug_mode(user_id, enabled)
@@ -385,18 +378,18 @@ async def process_set_debug_mode(callback: CallbackQuery):
     await callback.message.edit_text(t('debug_changed', lang), reply_markup=get_back_keyboard("back_to_settings", lang))
 
 
-async def process_language_callback(callback: CallbackQuery):
+async def process_language_callback(callback: CallbackQuery, services: Services):
     user_id = callback.from_user.id
     current = services.db.get_language(user_id)
     lang = services.db.get_language(callback.from_user.id)
     await callback.message.edit_text(t('lang_choose', lang), reply_markup=get_language_keyboard(current, lang))
 
 
-async def process_set_language_callback(callback: CallbackQuery):
+async def process_set_language_callback(callback: CallbackQuery, services: Services):
     user_id = callback.from_user.id
     lang = callback.data.split("set_lang_")[1]
     if lang not in ("ru", "en"):
-        await callback.answer("Некорректный язык")
+        await callback.answer(t('invalid_language', services.db.get_language(user_id)))
         return
     services.db.set_language(user_id, lang)
     new_lang = services.db.get_language(callback.from_user.id)
@@ -404,12 +397,12 @@ async def process_set_language_callback(callback: CallbackQuery):
     await callback.message.edit_text(t('lang_changed', new_lang), reply_markup=get_back_keyboard("back_to_settings", new_lang))
 
 
-async def process_appearance_callback(callback: CallbackQuery):
+async def process_appearance_callback(callback: CallbackQuery, services: Services):
     user_id = callback.from_user.id
     prefs = services.db.get_appearance(user_id)
     lang = services.db.get_language(callback.from_user.id)
     await callback.message.edit_text(
-        t('settings', lang),
+        t('appearance_title', lang),
         reply_markup=get_appearance_keyboard(
             show_flags=prefs.get('show_flags', True),
             show_codes=prefs.get('show_codes', True),
@@ -420,7 +413,7 @@ async def process_appearance_callback(callback: CallbackQuery):
     )
 
 
-async def process_toggle_appearance(callback: CallbackQuery):
+async def process_toggle_appearance(callback: CallbackQuery, services: Services):
     user_id = callback.from_user.id
     prefs = services.db.get_appearance(user_id)
     key_map = {
@@ -434,7 +427,7 @@ async def process_toggle_appearance(callback: CallbackQuery):
     prefs = services.db.get_appearance(user_id)
     lang = services.db.get_language(callback.from_user.id)
     await callback.message.edit_text(
-        t('settings', lang),
+        t('appearance_title', lang),
         reply_markup=get_appearance_keyboard(
             show_flags=prefs.get('show_flags', True),
             show_codes=prefs.get('show_codes', True),
@@ -445,30 +438,31 @@ async def process_toggle_appearance(callback: CallbackQuery):
     )
 
 
-async def process_back_to_currency_selection(callback: CallbackQuery):
+async def process_back_to_currency_selection(callback: CallbackQuery, services: Services):
     lang = services.db.get_language(callback.from_user.id)
     await callback.message.edit_text(t('choose_type', lang), reply_markup=get_currency_selection_keyboard(lang))
 
 
 # ── Обработчик сообщений ───────────────────────────────────
 
-async def process_message(message: Message):
+async def process_message(message: Message, services: Services):
     try:
         if not message.text or not message.text.strip():
             return
 
         user_id = message.from_user.id
+        services.db.touch(user_id)
         processing_mode = services.db.get_processing_mode(user_id)
         text = message.text.strip()
 
         if processing_mode == "simplified":
             if not text[0].isdigit():
                 return
-            result = await do_conversion(text, user_id, use_w2n=False)
+            result = await do_conversion(text, user_id, use_w2n=False, svc=services)
         elif processing_mode == "standard":
-            result = await do_conversion(text, user_id, use_w2n=False)
+            result = await do_conversion(text, user_id, use_w2n=False, svc=services)
         else:  # advanced
-            result = await do_conversion(text, user_id, use_w2n=True)
+            result = await do_conversion(text, user_id, use_w2n=True, svc=services)
 
         if result:
             await message.answer(result)
@@ -479,7 +473,7 @@ async def process_message(message: Message):
 
 # ── Инлайн хендлер ─────────────────────────────────────────
 
-async def inline_query_handler(inline_query: InlineQuery):
+async def inline_query_handler(inline_query: InlineQuery, services: Services):
     query = (inline_query.query or "").strip()
     user_id = inline_query.from_user.id
     lang = services.db.get_language(user_id)
@@ -494,7 +488,7 @@ async def inline_query_handler(inline_query: InlineQuery):
         return
 
     try:
-        result = await try_extract_currency(query, use_w2n=True)
+        result = await try_extract_currency(query, services, use_w2n=True)
 
         if not result:
             results = [InlineQueryResultArticle(
@@ -508,16 +502,7 @@ async def inline_query_handler(inline_query: InlineQuery):
 
         amount, from_currency = result
         selected = services.db.get_selected_currencies(user_id)
-        targets = selected['fiat'] + selected['crypto']
-
-        if not targets:
-            results = [InlineQueryResultArticle(
-                id="no_currencies", title=t('no_currencies_selected', lang),
-                description="Настройте валюты в /settings",
-                input_message_content=InputTextMessageContent(message_text=t('no_currencies_selected', lang)),
-            )]
-            await inline_query.answer(results, cache_time=0)
-            return
+        targets = selected['fiat'] + selected['crypto'] or list(INLINE_DEFAULT_TARGETS)
 
         if from_currency in targets:
             targets.remove(from_currency)
@@ -535,11 +520,11 @@ async def inline_query_handler(inline_query: InlineQuery):
             await inline_query.answer(results=results, cache_time=300)
             return
 
-        response = await format_conversion_response(amount, from_currency, conversions, user_id)
+        response = await format_conversion_response(amount, from_currency, conversions, user_id, services)
 
         results = [InlineQueryResultArticle(
             id="conversion",
-            title=t('inline_conv_title', lang, amount=amount, from_currency=from_currency),
+            title=t('inline_conv_title', lang, amount=f"{amount:g}", from_currency=from_currency),
             description=t('inline_conv_desc', lang),
             input_message_content=InputTextMessageContent(message_text=response, parse_mode="Markdown"),
         )]
@@ -557,17 +542,18 @@ async def inline_query_handler(inline_query: InlineQuery):
 
 # ── Регистрация хендлеров ──────────────────────────────────
 
-def register_handlers(dp: Dispatcher):
-    # Rate limit: 1 запрос в секунду на пользователя (админы вне лимита)
-    rate_limit = RateLimitMiddleware()
-    dp.message.middleware(rate_limit)
-    dp.callback_query.middleware(rate_limit)
-    dp.inline_query.middleware(rate_limit)
+def register_handlers(dp: Dispatcher, services: Services):
+    # Сервисы во все типы апдейтов; rate limit только для сообщений:
+    # inline-запрос приходит на каждое нажатие клавиши.
+    dp.message.middleware(ServicesMiddleware(services))
+    dp.callback_query.middleware(ServicesMiddleware(services))
+    dp.inline_query.middleware(ServicesMiddleware(services))
+    dp.message.middleware(RateLimitMiddleware())
 
-    dp.message.register(cmd_start, Command("start"))
-    dp.message.register(cmd_help, Command("help"))
-    dp.message.register(cmd_settings, Command("settings"))
-    dp.message.register(cmd_version, Command("version"))
+    dp.message.register(cmd_start, Command("start", "старт"))
+    dp.message.register(cmd_help, Command("help", "помощь"))
+    dp.message.register(cmd_settings, Command("settings", "настройки"))
+    dp.message.register(cmd_version, Command("version", "версия"))
     dp.message.register(process_message)
 
     dp.callback_query.register(process_settings_callback, lambda c: c.data == "settings")
@@ -588,31 +574,33 @@ def register_handlers(dp: Dispatcher):
     dp.callback_query.register(process_language_callback, lambda c: c.data == "language")
     dp.callback_query.register(process_set_language_callback, lambda c: c.data.startswith("set_lang_"))
     dp.callback_query.register(process_appearance_callback, lambda c: c.data == "appearance")
-    dp.callback_query.register(process_toggle_appearance, lambda c: c.data in ["toggle_compact", "toggle_flags", "toggle_codes", "toggle_symbols"])
+    dp.callback_query.register(process_toggle_appearance, lambda c: c.data.startswith("toggle_"))
     dp.callback_query.register(process_back_to_currency_selection, lambda c: c.data == "back_to_currency_selection")
-
     dp.inline_query.register(inline_query_handler)
 
 
 # ── Запуск ─────────────────────────────────────────────────
 
 def setup_logging():
-    os.makedirs('logs', exist_ok=True)
+    log_dir = os.path.dirname(LOG_FILE)
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
     logging.basicConfig(
-        level=logging.INFO,
+        level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler('logs/bot.log', encoding='utf-8'),
+            logging.FileHandler(LOG_FILE, encoding='utf-8'),
         ],
     )
 
 
 async def main():
-    global services
+    if not BOT_TOKEN:
+        raise SystemExit("BOT_TOKEN not set in environment/.env")
     services = Services()
 
-    register_handlers(services.dp)
+    register_handlers(services.dp, services)
 
     await on_startup(services)
 

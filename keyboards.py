@@ -24,17 +24,6 @@ def get_help_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
 	])
 	return keyboard
 
-def get_currency_type_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
-	"""Клавиатура выбора типа валют"""
-	fiat_text = "💵 Фиатные валюты" if lang == 'ru' else "💵 Fiat currencies"
-	crypto_text = "💎 Криптовалюты" if lang == 'ru' else "💎 Crypto"
-	back_text = "⬅️ Назад" if lang == 'ru' else "⬅️ Back"
-	keyboard = InlineKeyboardMarkup(inline_keyboard=[
-		[InlineKeyboardButton(text=fiat_text, callback_data="fiat_currencies")],
-		[InlineKeyboardButton(text=crypto_text, callback_data="crypto_currencies")],
-		[InlineKeyboardButton(text=back_text, callback_data="back_to_settings")]
-	])
-	return keyboard
 
 def get_letter_keyboard(currency_type: str, lang: str = 'ru') -> InlineKeyboardMarkup:
 	"""Клавиатура с буквами для выбора валюты"""
@@ -73,7 +62,7 @@ def get_currencies_by_letter_keyboard(currency_type: str, letter: str, selected_
 		check = "✅ " if code in selected_codes else "❌ "
 		current_row.append(InlineKeyboardButton(
 			text=f"{check}{name}",
-			callback_data=f"select_currency_{currency_type}_{code}"
+			callback_data=f"select_currency_{currency_type}_{letter}_{code}"
 		))
 		if len(current_row) == 2:
 			buttons.append(current_row)
@@ -110,11 +99,11 @@ def get_api_source_keyboard(current_source: str = "auto", lang: str = 'ru') -> I
     """Клавиатура выбора источника курсов с цифрами приоритета."""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[])
     options = [
-        ("auto", "🔄 Авто (по приоритету)" if lang=='ru' else "🔄 Auto (by priority)"),
-        ("1", "1️⃣ Frankfurter (84 банка)" if lang=='ru' else "1️⃣ Frankfurter (84 banks)"),
-        ("2", "2️⃣ НБРБ (официальные)" if lang=='ru' else "2️⃣ NBRB (official)"),
-        ("3", "3️⃣ CurrencyFreaks (фоллбек)" if lang=='ru' else "3️⃣ CurrencyFreaks (fallback)"),
-        ("4", "4️⃣ ExchangeRate-API (резервный)" if lang=='ru' else "4️⃣ ExchangeRate-API (fallback)"),
+        ("auto", "🔄 Авто" if lang=='ru' else "🔄 Auto"),
+        ("1", "1️⃣ Frankfurter (приоритет 1)" if lang=='ru' else "1️⃣ Frankfurter (priority 1)"),
+        ("2", "2️⃣ НБРБ (приоритет 2)" if lang=='ru' else "2️⃣ NBRB (priority 2)"),
+        ("3", "3️⃣ CurrencyFreaks (приоритет 3)" if lang=='ru' else "3️⃣ CurrencyFreaks (priority 3)"),
+        ("4", "4️⃣ ExchangeRate-API (приоритет 4)" if lang=='ru' else "4️⃣ ExchangeRate-API (priority 4)"),
     ]
     for key, name in options:
         icon = "✅" if key == current_source else "❌"

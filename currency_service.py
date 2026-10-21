@@ -2,12 +2,12 @@ import httpx
 import re
 import logging
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 from config import (
     CURRENCY_FREAKS_API_KEY, CURRENCY_FREAKS_BASE_URL,
     EXCHANGE_RATE_API_KEY, EXCHANGE_RATE_BASE_URL,
-    NBRB_BASE_URL, FRANKFURTER_BASE_URL, API_PRIORITY,
-    FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES
+    NBRB_BASE_URL, FRANKFURTER_BASE_URL, COINGECKO_BASE_URL, API_PRIORITY,
+    CACHE_LIFETIME, FIAT_CURRENCIES, CRYPTO_CURRENCIES, CURRENCY_ALIASES,
 )
 from word2number import w2n
 from math_parser import MathParser
@@ -28,10 +28,10 @@ class CurrencyService:
         self.frankfurter_base_url = FRANKFURTER_BASE_URL
         self.math_parser = MathParser()
 
-        self.rates_cache: Dict[str, Tuple[float, Dict]] = {}
-        self.cache_timeout = 600  # 10 минут
-        self.api_failures = {'currencyfreaks': 0, 'exchangerate': 0, 'nbrb': 0, 'frankfurter': 0}
-        self.max_failures = 3
+        self.rates_cache: Dict[Tuple[str, str], Tuple[float, Dict[str, float]]] = {}
+        self.cache_timeout = CACHE_LIFETIME
+        self.failure_cooldown = 60  # секунд: провайдер пропускается после сбоя
+        self._cooldowns: Dict[str, float] = {}
         self._session: Optional[httpx.AsyncClient] = None
 
     # ── HTTP session ──────────────────────────────────────────
@@ -45,142 +45,201 @@ class CurrencyService:
     async def close(self):
         if self._session:
             await self._session.aclose()
+            self._session = None
 
     # ── API: получение курсов ────────────────────────────────
 
-    async def get_rates(self, base_currency: str = 'USD', api_source: str = 'auto'
-                        ) -> Tuple[Dict, str]:
-        """Получить курсы. Возвращает (rates, source).
-        api_source: 'auto' | '1' (НБРБ) | '2' (Frankfurter) | '3' (CurrencyFreaks) | '4' (ExchangeRate)"""
-        cache_key = f"{api_source}:{base_currency}"
-        cached = self.rates_cache.get(cache_key)
-        if cached:
-            cache_time, rates = cached
-            if (time.time() - cache_time) < self.cache_timeout:
-                logger.debug("Используем кэшированные курсы (база: %s)", base_currency)
-                return rates, f"cache:{api_source}"
+    _DIGITS = {'1': 'frankfurter', '2': 'nbrb', '3': 'currencyfreaks', '4': 'exchangerate'}
 
-        # Порядок попыток зависит от api_source
-        chain = self._build_chain(api_source, base_currency)
-        for name, coro_factory in chain:
-            result = await coro_factory()
-            if result:
-                self.api_failures[name] = 0
-                self.rates_cache[cache_key] = (time.time(), result)
-                logger.info("Курсы получены от %s (база: %s)", name, base_currency)
-                return result, name
-            self.api_failures[name] += 1
+    # Провайдер → категории валют, которые он умеет
+    _PROVIDERS = {
+        'frankfurter': {'fiat'},
+        'nbrb': {'fiat'},
+        'currencyfreaks': {'fiat', 'crypto'},
+        'exchangerate': {'fiat'},
+        'coingecko': {'crypto'},
+    }
 
-        logger.warning("Все API недоступны для базы %s", base_currency)
-        return {}, 'unavailable'
+    # CoinGecko: тикер → id в API (курс только к USD)
+    _COINGECKO_IDS = {
+        'BTC': 'bitcoin', 'ETH': 'ethereum', 'TON': 'the-open-network',
+        'USDT': 'tether', 'BNB': 'binancecoin', 'ADA': 'cardano',
+        'SOL': 'solana', 'DOT': 'polkadot', 'MATIC': 'matic-network',
+        'LINK': 'chainlink', 'UNI': 'uniswap', 'AVAX': 'avalanche-2',
+        'ATOM': 'cosmos', 'LTC': 'litecoin', 'BCH': 'bitcoin-cash',
+        'XRP': 'ripple', 'DOGE': 'dogecoin', 'SHIB': 'shiba-inu',
+        'TRX': 'tron', 'XLM': 'stellar', 'DAI': 'dai',
+        'BUSD': 'binance-usd', 'TUSD': 'true-usd', 'GUSD': 'gemini-dollar',
+        'FRAX': 'frax', 'LUSD': 'liquity-usd', 'USDC': 'usd-coin',
+    }
 
-    def _build_chain(self, api_source: str, base_currency: str
-                     ) -> List[Tuple[str, callable]]:
-        """Построить цепочку попыток получения курсов.
-        Приоритет определяется API_PRIORITY из config (меньше число = выше приоритет).
-        api_source может быть 'auto' или цифрой '1'..'4'."""
-        all_sources = [
-            ('frankfurter', self._fetch_frankfurter),
-            ('nbrb', self._fetch_nbrb),
-            ('currencyfreaks', self._fetch_currencyfreaks),
-            ('exchangerate', self._fetch_exchangerate),
-        ]
+    async def get_rates(self, base_currency: str = 'USD', api_source: str = 'auto',
+                        required: Iterable[str] = ()) -> Tuple[Dict[str, float], Dict[str, str]]:
+        """Получить курсы к base_currency и источники по каждой валюте.
 
-        # Маппинг цифр → имена API
-        digit_to_name = {'1': 'frankfurter', '2': 'nbrb', '3': 'currencyfreaks', '4': 'exchangerate'}
+        `required` — коды, которые нужны вызывающему. Провайдер без нужной
+        категории валют пропускается, поэтому фиатный источник не мешает
+        получить крипту, и наоборот. Выбранный api_source идёт первым,
+        остальные — фоллбек. Возвращает ({code: rate}, {code: provider}).
+        """
+        needed = set(required) - {base_currency}
+        rates: Dict[str, float] = {}
+        sources: Dict[str, str] = {}
+        now = time.monotonic()
 
+        for name in self._build_chain(api_source):
+            if self._cooldowns.get(name, 0) > now:
+                continue
+            if needed and not any(self._category(c) in self._PROVIDERS[name] for c in needed):
+                continue
+
+            provider_rates = await self._provider_rates(name, base_currency)
+            if provider_rates is None:
+                self._cooldowns[name] = now + self.failure_cooldown
+                continue
+
+            for code, rate in provider_rates.items():
+                rates.setdefault(code, rate)
+                sources.setdefault(code, name)
+
+            if not needed or needed <= rates.keys():
+                break
+
+        if not rates:
+            logger.warning("Все API недоступны для базы %s", base_currency)
+        return rates, sources
+
+    @staticmethod
+    def _category(code: str) -> str:
+        return 'crypto' if code in CRYPTO_CURRENCIES else 'fiat'
+
+    async def _provider_rates(self, name: str, base: str) -> Optional[Dict[str, float]]:
+        """Курсы одного провайдера из кэша или сети (None — провайдер недоступен)."""
+        key = (name, base)
+        cached = self.rates_cache.get(key)
+        if cached and (time.time() - cached[0]) < self.cache_timeout:
+            return cached[1]
+        try:
+            rates = await getattr(self, f'_fetch_{name}')(base)
+        except Exception as e:
+            logger.warning("%s error: %s", name, e)
+            return None
+        if not rates:
+            return None
+        rates.setdefault(base, 1.0)
+        self.rates_cache[key] = (time.time(), rates)
+        logger.info("Курсы получены от %s (база: %s)", name, base)
+        return rates
+
+    def _build_chain(self, api_source: str) -> List[str]:
+        """Порядок провайдеров: выбранный первым, остальные по API_PRIORITY."""
+        names = sorted(self._PROVIDERS, key=lambda n: API_PRIORITY.get(n, 99))
         if api_source == 'auto':
-            # Сортируем по приоритету из API_PRIORITY
-            sorted_sources = sorted(all_sources, key=lambda x: API_PRIORITY.get(x[0], 99))
-            return [(n, lambda f=f, b=base_currency: f(b)) for n, f in sorted_sources]
-        else:
-            # Преобразуем цифру в имя, если нужно
-            source_name = digit_to_name.get(api_source, api_source)
-            primary = [(n, f) for n, f in all_sources if n == source_name]
-            fallback = [(n, f) for n, f in all_sources if n != source_name]
-            return [(n, lambda f=f, b=base_currency: f(b)) for n, f in primary + fallback]
+            return names
+        primary = self._DIGITS.get(str(api_source), api_source)
+        return [primary] + [n for n in names if n != primary]
 
-    async def _fetch_currencyfreaks(self, base_currency: str) -> Optional[Dict]:
+    @staticmethod
+    def _to_rates(raw: Optional[Dict]) -> Dict[str, float]:
+        """Нормализовать ответ API: строки → float, отбросить мусор."""
+        rates: Dict[str, float] = {}
+        for code, value in (raw or {}).items():
+            try:
+                rates[str(code).upper()] = float(value)
+            except (TypeError, ValueError):
+                continue
+        return rates
+
+    async def _fetch_currencyfreaks(self, base_currency: str) -> Optional[Dict[str, float]]:
         if not self.currencyfreaks_api_key:
             return None
         try:
             session = await self._get_session()
             resp = await session.get(self.currencyfreaks_base_url, params={
-                'apikey': self.currencyfreaks_api_key, 'base': base_currency
+                'apikey': self.currencyfreaks_api_key, 'base': base_currency,
             })
-            if resp.status_code == 200:
-                return resp.json().get('rates', {})
-            logger.warning("CurrencyFreaks HTTP %s", resp.status_code)
+            if resp.status_code != 200:
+                logger.warning("CurrencyFreaks HTTP %s", resp.status_code)
+                return None
+            return self._to_rates(resp.json().get('rates')) or None
         except Exception as e:
             logger.warning("CurrencyFreaks error: %s", e)
-        return None
+            return None
 
-    async def _fetch_exchangerate(self, base_currency: str) -> Optional[Dict]:
+    async def _fetch_exchangerate(self, base_currency: str) -> Optional[Dict[str, float]]:
         if not self.exchangerate_api_key:
             return None
         try:
             session = await self._get_session()
-            url = f"{self.exchangerate_base_url}/{self.exchangerate_api_key}/latest/{base_currency}"
-            resp = await session.get(url)
-            if resp.status_code == 200:
-                return resp.json().get('conversion_rates', {})
-            logger.warning("ExchangeRate HTTP %s", resp.status_code)
+            resp = await session.get(
+                f"{self.exchangerate_base_url}/{self.exchangerate_api_key}/latest/{base_currency}"
+            )
+            if resp.status_code != 200:
+                logger.warning("ExchangeRate HTTP %s", resp.status_code)
+                return None
+            return self._to_rates(resp.json().get('conversion_rates')) or None
         except Exception as e:
             logger.warning("ExchangeRate error: %s", e)
-        return None
+            return None
 
-    async def _fetch_nbrb(self, base_currency: str) -> Optional[Dict]:
-        """НБРБ отдаёт курсы относительно BYN.
-        Конвертируем в нужную базовую валюту."""
+    async def _fetch_nbrb(self, base_currency: str) -> Optional[Dict[str, float]]:
         try:
             session = await self._get_session()
-            resp = await session.get(f"{self.nbrb_base_url}/exrates/rates",
-                                     params={'Periodicity': 0})
+            resp = await session.get(f"{self.nbrb_base_url}/rates?periodicity=0")
             if resp.status_code != 200:
                 logger.warning("НБРБ HTTP %s", resp.status_code)
                 return None
-
-            data = resp.json()
-            rates_to_byn: Dict[str, float] = {}
-            for c in data:
-                code = c.get('Cur_Abbreviation')
-                rate = c.get('Cur_OfficialRate')
+            raw: Dict[str, float] = {'BYN': 1.0}
+            for item in resp.json():
+                code = item.get('Cur_Abbreviation')
+                scale = item.get('Cur_Scale', 1) or 1
+                rate = item.get('Cur_OfficialRate')
                 if code and rate:
-                    scale = c.get('Cur_Scale', 1)
-                    rates_to_byn[code] = float(rate) / float(scale)
-            rates_to_byn['BYN'] = 1.0
-
-            return self._convert_base(rates_to_byn, base_currency)
+                    raw[code] = float(rate) / float(scale)
+            return self._convert_base(raw, base_currency)
         except Exception as e:
             logger.warning("НБРБ error: %s", e)
             return None
 
-    async def _fetch_frankfurter(self, base_currency: str) -> Optional[Dict]:
-        """Frankfurter — бесплатный API от 84 центральных банков.
-        Формат ответа: [{date, base, quote, rate}, ...].
-        Конвертируем в нужную базовую валюту."""
+    async def _fetch_frankfurter(self, base_currency: str) -> Optional[Dict[str, float]]:
         try:
             session = await self._get_session()
-            resp = await session.get(f"{self.frankfurter_base_url}/rates",
-                                     params={'base': base_currency})
+            resp = await session.get(f"{self.frankfurter_base_url}/rates", params={
+                'base': base_currency,
+            })
             if resp.status_code != 200:
                 logger.warning("Frankfurter HTTP %s", resp.status_code)
                 return None
-
-            data = resp.json()
-            rates: Dict[str, float] = {}
-            for entry in data:
-                quote = entry.get('quote')
-                rate = entry.get('rate')
-                if quote and rate:
-                    rates[quote] = float(rate)
-            rates[base_currency] = 1.0
-
-            if len(rates) <= 1:
-                return None
-            return rates
+            rates = self._to_rates({
+                entry['quote']: entry['rate'] for entry in resp.json() if 'quote' in entry
+            })
+            return rates or None
         except Exception as e:
             logger.warning("Frankfurter error: %s", e)
+            return None
+
+    async def _fetch_coingecko(self, base_currency: str) -> Optional[Dict[str, float]]:
+        """CoinGecko отдаёт цену в USD; курс USD → монета = 1 / price."""
+        if base_currency != 'USD':
+            return None
+        try:
+            session = await self._get_session()
+            resp = await session.get(f"{COINGECKO_BASE_URL}/simple/price", params={
+                'ids': ','.join(self._COINGECKO_IDS.values()),
+                'vs_currencies': 'usd',
+            })
+            if resp.status_code != 200:
+                logger.warning("CoinGecko HTTP %s", resp.status_code)
+                return None
+            prices = resp.json()
+            rates: Dict[str, float] = {}
+            for code, coin_id in self._COINGECKO_IDS.items():
+                price = (prices.get(coin_id) or {}).get('usd')
+                if price:
+                    rates[code] = 1.0 / float(price)
+            return rates or None
+        except Exception as e:
+            logger.warning("CoinGecko error: %s", e)
             return None
 
     @staticmethod
@@ -265,13 +324,9 @@ class CurrencyService:
         if currency_text in CURRENCY_ALIASES:
             return CURRENCY_ALIASES[currency_text]
 
-        symbols = {
-            '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY',
-            '₽': 'RUB', '₴': 'UAH', '₸': 'KZT', '₩': 'KRW',
-            '₹': 'INR', '₿': 'BTC', 'Ξ': 'ETH', '💎': 'TON'
-        }
-        if currency_text in symbols:
-            return symbols[currency_text]
+        symbol = self._SYMBOL_TO_CODE.get(currency_text)
+        if symbol:
+            return symbol
 
         upper = currency_text.upper()
         if upper in FIAT_CURRENCIES or upper in CRYPTO_CURRENCIES:
@@ -308,72 +363,22 @@ class CurrencyService:
     }
 
     def _russian_words_to_number(self, text: str) -> Optional[float]:
-        result = 0
+        total = 0
         current = 0
         for word in text.split():
             n = self._RU_NUMBERS.get(word)
             if n is None:
                 continue
             if n >= 1000:
-                if current == 0:
-                    current = 1
-                result += current * n
+                total += (current or 1) * n
                 current = 0
             elif n >= 100:
-                if current == 0:
-                    current = 1
-                result += current * n
-                current = 0
-            elif n >= 20:
-                current = current * 10 + n if current else n
+                current = (current or 1) * n
             else:
-                if current >= 20:
-                    current += n
-                else:
-                    current = n
-        result += current
-        return result if result > 0 else None
+                current += n
+        total += current
+        return total if total > 0 else None
 
-    def money_to_number(self, text: str) -> Optional[Tuple[float, str]]:
-        patterns = [
-            r'(\d+(?:[.,]\d+)?)\s*(доллар|долларов|доллара|доллары)',
-            r'(\d+(?:[.,]\d+)?)\s*(евро|евров|евра)',
-            r'(\d+(?:[.,]\d+)?)\s*(рубл|рублей|рубля|рубли)',
-            r'(\d+(?:[.,]\d+)?)\s*(гривен|гривны|гривень)',
-            r'(\d+(?:[.,]\d+)?)\s*(тон|тонов|тона)',
-            r'(\d+(?:[.,]\d+)?)\s*(биткоин|биткоинов|биткоина)',
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, text.lower())
-            if match:
-                try:
-                    number = float(self.normalize_number(match.group(1)))
-                    currency = self.resolve_currency(match.group(2))
-                    if currency:
-                        return number, currency
-                except ValueError:
-                    continue
-
-        # Слова + валюта (для расширенного режима)
-        word_patterns = [
-            r'(двадцать|тридцать|сорок|пятьдесят|шестьдесят|семьдесят|восемьдесят|девяносто|сто|двести|триста|четыреста|пятьсот|шестьсот|семьсот|восемьсот|девятьсот|тысяча|тысячи|тысяч|миллион|миллиона|миллионов)\s+(один|два|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать|тринадцать|четырнадцать|пятнадцать|шестнадцать|семнадцать|восемнадцать|девятнадцать)?\s*(доллар|долларов|доллара|доллары|евро|евров|евра|рубл|рублей|рубля|рубли|гривен|гривны|гривень|тон|тонов|тона|биткоин|биткоинов|биткоина)',
-            r'(один|два|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать|тринадцать|четырнадцать|пятнадцать|шестнадцать|семнадцать|восемнадцать|девятнадцать)\s+(доллар|долларов|доллара|доллары|евро|евров|евра|рубл|рублей|рубля|рубли|гривен|гривны|гривень|тон|тонов|тона|биткоин|биткоинов|биткоина)',
-        ]
-        for pattern in word_patterns:
-            match = re.search(pattern, text.lower())
-            if match:
-                number_text = match.group(1)
-                if match.group(2):
-                    number_text += " " + match.group(2)
-                currency_text = match.group(3) if match.group(3) else match.group(2)
-                number = self._russian_words_to_number(number_text)
-                if number:
-                    currency = self.resolve_currency(currency_text)
-                    if currency:
-                        return number, currency
-        return None
-
-    # ── Математические выражения ──────────────────────────────
 
     def evaluate_math_expression(self, text: str) -> Optional[Tuple[float, str]]:
         try:
@@ -420,39 +425,35 @@ class CurrencyService:
     async def convert_currency(self, amount: float, from_currency: str,
                                to_currencies: List[str], api_source: str = 'auto') -> Dict:
         """Конвертация через USD. Возвращает {currency: {'amount': float, 'source': str}}."""
-        if from_currency in CRYPTO_CURRENCIES:
-            return await self._convert_via_usd(amount, from_currency, to_currencies, api_source)
-        # Фиат: сначала пробуем НБРБ (если обе валюты есть там)
-        # Если нет — фоллбек на другие API через USD
         return await self._convert_via_usd(amount, from_currency, to_currencies, api_source)
 
     async def _convert_via_usd(self, amount: float, from_currency: str,
                                 to_currencies: List[str], api_source: str) -> Dict:
-        rates, source = await self.get_rates('USD', api_source)
+        required = [from_currency, *to_currencies, 'USD']
+        rates, sources = await self.get_rates('USD', api_source, required)
         if not rates:
             return {}
 
-        # Конвертируем в USD
         if from_currency == 'USD':
             usd_amount = amount
-        elif from_currency in rates:
-            from_rate = rates[from_currency]
-            if isinstance(from_rate, (int, float)):
-                usd_amount = amount / float(from_rate)
-            else:
-                return {}
         else:
-            return {}
+            from_rate = rates.get(from_currency)
+            if not from_rate:
+                return {}
+            usd_amount = amount / from_rate
 
-        # Из USD в целевые
         results = {}
         for to_curr in to_currencies:
             if to_curr == 'USD':
-                results[to_curr] = {'amount': usd_amount, 'source': source}
+                results[to_curr] = {
+                    'amount': usd_amount,
+                    'source': sources.get('USD', 'unknown'),
+                }
             elif to_curr in rates:
-                rate = rates[to_curr]
-                if isinstance(rate, (int, float)):
-                    results[to_curr] = {'amount': usd_amount * float(rate), 'source': source}
+                results[to_curr] = {
+                    'amount': usd_amount * rates[to_curr],
+                    'source': sources.get(to_curr, 'unknown'),
+                }
         return results
 
     # ── Форматирование ────────────────────────────────────────
@@ -480,29 +481,6 @@ class CurrencyService:
                 return f"{amount:.4f}{code}".strip()
             return f"{amount:.2f}{code}".strip()
 
-    _FLAGS = {
-        'USD': '🇺🇸', 'EUR': '🇪🇺', 'GBP': '🇬🇧', 'JPY': '🇯🇵',
-        'CNY': '🇨🇳', 'RUB': '🇷🇺', 'UAH': '🇺🇦', 'BYN': '🇧🇾',
-        'KZT': '🇰🇿', 'CZK': '🇨🇿', 'KRW': '🇰🇷', 'INR': '🇮🇳',
-        'PLN': '🇵🇱', 'HUF': '🇭🇺', 'TRY': '🇹🇷', 'BRL': '🇧🇷',
-        'MXN': '🇲🇽', 'ARS': '🇦🇷', 'CLP': '🇨🇱', 'COP': '🇨🇴',
-        'PEN': '🇵🇪', 'UYU': '🇺🇾', 'PYG': '🇵🇾', 'BWP': '🇧🇼',
-        'ZAR': '🇿🇦', 'EGP': '🇪🇬', 'NGN': '🇳🇬', 'KES': '🇰🇪',
-        'GHS': '🇬🇭', 'MAD': '🇲🇦', 'TND': '🇹🇳', 'LYD': '🇱🇾',
-        'DZD': '🇩🇿', 'JOD': '🇯🇴', 'KWD': '🇰🇼', 'BHD': '🇧🇭',
-        'QAR': '🇶🇦', 'AED': '🇦🇪', 'OMR': '🇴🇲', 'YER': '🇾🇪',
-        'SAR': '🇸🇦', 'ILS': '🇮🇱', 'MOP': '🇲🇴', 'ANG': '🇧🇶',
-        'XCD': '🇦🇬', 'BBD': '🇧🇧', 'TTD': '🇹🇹', 'JMD': '🇯🇲',
-        'HTG': '🇭🇹', 'DOP': '🇩🇴', 'CUP': '🇨🇺', 'BSD': '🇧🇸',
-        'BMD': '🇧🇲', 'BZD': '🇧🇿', 'GTQ': '🇬🇹', 'HNL': '🇭🇳',
-        'SVC': '🇸🇻', 'NIO': '🇳🇮', 'CRC': '🇨🇷', 'PAB': '🇵🇦',
-        'BOB': '🇧🇴', 'GEL': '🇬🇪', 'AMD': '🇦🇲', 'AZN': '🇦🇿',
-        'KGS': '🇰🇬', 'TJS': '🇹🇯', 'TMT': '🇹🇲', 'UZS': '🇺🇿',
-        'MNT': '🇲🇳', 'LSL': '🇱🇸', 'NAD': '🇳🇦', 'SZL': '🇸🇿',
-        'MUR': '🇲🇺', 'SCR': '🇸🇨', 'KMF': '🇰🇲', 'MGA': '🇲🇬',
-        'CDF': '🇨🇩', 'MWK': '🇲🇼', 'ZMW': '🇿🇲', 'ZWL': '🇿🇼',
-    }
-
     _SYMBOLS = {
         'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥',
         'CNY': '¥', 'RUB': '₽', 'UAH': '₴', 'BYN': 'Br',
@@ -523,11 +501,21 @@ class CurrencyService:
         'KGS': 'с', 'TJS': 'ЅМ', 'TMT': 'm', 'UZS': "so'm",
         'MNT': '₮', 'LSL': 'L', 'NAD': '$', 'SZL': 'E',
         'MUR': '₨', 'SCR': '₨', 'KMF': 'CF', 'MGA': 'Ar',
-        'CDF': 'FC', 'MWK': 'MK', 'ZMW': 'ZK', 'ZWL': 'Z$',
+        'CDF': 'FC', 'MWK': 'MK', 'ZMW': 'ZK',
+        'BTC': '₿', 'ETH': 'Ξ', 'TON': '💎',
     }
 
-    def _get_currency_flag(self, currency: str) -> str:
-        return self._FLAGS.get(currency, '')
+    # Символы, которые встречаются у нескольких валют: однозначные коды
+    _SYMBOL_TO_CODE = {
+        '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY', '₽': 'RUB',
+        '₴': 'UAH', '₸': 'KZT', '₩': 'KRW', '₹': 'INR', '₿': 'BTC',
+        'Ξ': 'ETH', '💎': 'TON',
+    }
+
+    @staticmethod
+    def _get_currency_flag(currency: str) -> str:
+        entry = FIAT_CURRENCIES.get(currency)
+        return entry.split()[0] if entry else ''
 
     def _get_currency_symbol(self, currency: str) -> str:
         return self._SYMBOLS.get(currency, '')

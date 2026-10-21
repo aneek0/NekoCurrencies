@@ -3,16 +3,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Telegram Bot Token
+# Telegram Bot Token (validated in bot.main(), so config stays importable for tests)
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
-if not BOT_TOKEN:
-    raise SystemExit("BOT_TOKEN not set in environment/.env")
 
 # Admin IDs (comma-separated list)
 ADMIN_IDS = [int(x.strip()) for x in os.getenv('ADMIN_IDS', '').split(',') if x.strip()]
 
 # Rate limit: минимальный интервал между запросами одного пользователя (секунды)
 RATE_LIMIT_PERIOD = float(os.getenv('RATE_LIMIT_PERIOD', '1.0'))
+CACHE_LIFETIME = int(os.getenv('CACHE_LIFETIME', '600'))
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+LOG_FILE = os.getenv('LOG_FILE', 'logs/bot.log')
+DATABASE_FILE = os.getenv('DATABASE_FILE', 'data/users.db')
+BOT_VERSION = os.getenv('BOT_VERSION', '1.1.0')
 
 # CurrencyFreaks API (основной)
 CURRENCY_FREAKS_API_KEY = os.getenv('CURRENCY_FREAKS_API_KEY')
@@ -24,9 +27,10 @@ EXCHANGE_RATE_BASE_URL = "https://v6.exchangerate-api.com/v6"
 
 # Frankfurter API (бесплатный, 84 центральных банка, 200+ валют)
 FRANKFURTER_BASE_URL = "https://api.frankfurter.dev/v2"
+COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
 
 # НБРБ API (белорусский источник)
-NBRB_BASE_URL = "https://www.nbrb.by/api"
+NBRB_BASE_URL = "https://api.nbrb.by/exrates"
 
 # Supported currencies
 FIAT_CURRENCIES = {
@@ -60,13 +64,8 @@ FIAT_CURRENCIES = {
     'TMT': '🇹🇲 TMT', 'UZS': '🇺🇿 UZS', 'MNT': '🇲🇳 MNT', 'LSL': '🇱🇸 LSL',
     'NAD': '🇳🇦 NAD', 'SZL': '🇸🇿 SZL', 'MUR': '🇲🇺 MUR', 'SCR': '🇸🇨 SCR',
     'KMF': '🇰🇲 KMF', 'MGA': '🇲🇬 MGA', 'CDF': '🇨🇩 CDF', 'MWK': '🇲🇼 MWK',
-    'ZMW': '🇿🇲 ZMW', 'ZWL': '🇿🇼 ZWL', 'ZWD': '🇿🇼 ZWD', 'BAM': '🇧🇦 BAM',
-    'RSD': '🇷🇸 RSD', 'MKD': '🇲🇰 MKD', 'ALL': '🇦🇱 ALL', 'BGN': '🇧🇬 BGN',
-    'HRK': '🇭🇷 HRK', 'EEK': '🇪🇪 EEK', 'FIM': '🇫🇮 FIM', 'FRF': '🇫🇷 FRF',
-    'DEM': '🇩🇪 DEM', 'GRD': '🇬🇷 GRD', 'IEP': '🇮🇪 IEP', 'ITL': '🇮🇹 ITL',
-    'LVL': '🇱🇻 LVL', 'LTL': '🇱🇹 LTL', 'LUF': '🇱🇺 LUF', 'MTL': '🇲🇹 MTL',
-    'NLG': '🇳🇱 NLG', 'PTE': '🇵🇹 PTE', 'ROL': '🇷🇴 ROL', 'SIT': '🇸🇮 SIT',
-    'SKK': '🇸🇰 SKK', 'ESP': '🇪🇸 ESP'
+    'ZMW': '🇿🇲 ZMW', 'BAM': '🇧🇦 BAM', 'RSD': '🇷🇸 RSD', 'MKD': '🇲🇰 MKD',
+    'ALL': '🇦🇱 ALL', 'RON': '🇷🇴 RON'
 }
 
 CRYPTO_CURRENCIES = {
@@ -178,26 +177,7 @@ CURRENCY_ALIASES = {
 	'конвертируемая марка': 'BAM', 'марка конвертируемая': 'BAM',
 	'сербский динар': 'RSD',
 	'македонский денар': 'MKD',
-    'лек': 'ALL', 'леков': 'ALL', 'лека': 'ALL', 'леки': 'ALL',
-    'лев': 'BGN', 'левов': 'BGN', 'лева': 'BGN', 'левы': 'BGN',
-    'куна': 'HRK', 'кун': 'HRK', 'куны': 'HRK',
-	'эстонская крона': 'EEK',
-	'финляндская марка': 'FIM',
-	'французский франк': 'FRF',
-	'немецкая марка': 'DEM',
-    'драхма': 'GRD', 'драхм': 'GRD', 'драхмы': 'GRD',
-	'ирландский фунт': 'IEP',
-	'итальянская лира': 'ITL',
-    'лат': 'LVL', 'латов': 'LVL', 'лата': 'LVL', 'латы': 'LVL',
-    'лит': 'LTL', 'литов': 'LTL', 'лита': 'LTL', 'литы': 'LTL',
-	'люксембургский франк': 'LUF',
-	'мальтийская лира': 'MTL',
-	'нидерландский гульден': 'NLG',
-	'эскудо': 'PTE',
-    'лей': 'ROL', 'леев': 'ROL', 'лея': 'ROL', 'леи': 'ROL',
-	'словенский толар': 'SIT',
-	'словацкая крона': 'SKK',
-    'песета': 'ESP', 'песет': 'ESP', 'песеты': 'ESP',
+    'лей': 'RON', 'леев': 'RON', 'лея': 'RON', 'леи': 'RON',
     
     # Cryptocurrencies
     'биткоин': 'BTC', 'биткоинов': 'BTC', 'биткоина': 'BTC',
@@ -257,6 +237,7 @@ API_PRIORITY = {
     'nbrb': 2,
     'currencyfreaks': 3,
     'exchangerate': 4,
+    'coingecko': 5,
 }
 
 # Processing modes

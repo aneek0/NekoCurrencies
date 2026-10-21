@@ -96,6 +96,9 @@ class TestLanguage:
         db.get_user(1)
         db.set_language(1, 'en')
         assert db.get_language(1) == 'en'
+    def test_invalid_lang_rejected(self, db):
+        with pytest.raises(ValueError):
+            db.set_language(1, 'de')
 
 
 class TestAppearance:
