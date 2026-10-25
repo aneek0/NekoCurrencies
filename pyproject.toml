@@ -1,6 +1,6 @@
 [project]
 name = "nekocurrencies"
-version = "1.1.0"
+version = "1.2.0"
 description = "Telegram bot for currency conversion"
 authors = [
     {name = "aneek0", email = "aneek0@example.com"}

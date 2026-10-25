@@ -15,7 +15,7 @@ CACHE_LIFETIME = int(os.getenv('CACHE_LIFETIME', '600'))
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 LOG_FILE = os.getenv('LOG_FILE', 'logs/bot.log')
 DATABASE_FILE = os.getenv('DATABASE_FILE', 'data/users.db')
-BOT_VERSION = os.getenv('BOT_VERSION', '1.1.0')
+BOT_VERSION = os.getenv('BOT_VERSION', '1.2.0')
 
 # CurrencyFreaks API (основной)
 CURRENCY_FREAKS_API_KEY = os.getenv('CURRENCY_FREAKS_API_KEY')

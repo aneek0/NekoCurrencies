@@ -96,7 +96,7 @@ A fiat source never blocks crypto: the provider is chosen for the currencies bei
 | `CACHE_LIFETIME` | ❌ | Rate cache TTL, seconds (600) |
 | `LOG_LEVEL`, `LOG_FILE` | ❌ | Log level and file (INFO, `logs/bot.log`) |
 | `DATABASE_FILE` | ❌ | SQLite path (`data/users.db`) |
-| `BOT_VERSION` | ❌ | Version shown by `/version` (1.1.0) |
+| `BOT_VERSION` | ❌ | Version shown by `/version` (1.2.0) |
 
 ## How it works
 
