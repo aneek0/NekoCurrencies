@@ -12,14 +12,14 @@ Telegram-бот конвертации валют. Frankfurter — основн�
 | `query.py` | `Query(amount, currency)`, `parse(text, mode)` — числа, слова, выражения | 159 |
 | `conversion.py` | Политика целей, кросс-курс через USD, отрисовка ответа | 127 |
 | `rates.py` | `RateSource`-адаптеры, `RateService` — порядок опроса, кэш, кулдаун | 301 |
-| `catalog.py` | Каталог валют: коды, категории, подписи, алиасы, символы | 246 |
+| `catalog.py` | Каталог валют: коды, категории, подписи, алиасы (ru + en), символы | 273 |
 | `settings.py` | Реестр настроек: режимы, источники API, оформление, языки | 81 |
 | `database.py` | `UserDatabase` + `Preferences` — SQLite, WAL, миграции | 194 |
 | `math_parser.py` | `MathParser` — только вычисление выражений | 112 |
 | `keyboards.py` | Inline-клавиатуры (строятся из `settings`/`catalog`/`t`) | 153 |
 | `localization.py` | `TEXTS` dict, `t()` функция | 358 |
 | `config.py` | Только переменные окружения и URL провайдеров | 33 |
-| `tests/` | pytest-тесты (158 тестов, покрытие в CI) | 829 |
+| `tests/` | pytest-тесты (165 тестов, покрытие в CI) | 841 |
 
 ## Запуск
 
@@ -81,12 +81,12 @@ CREATE TABLE users (
 
 ## CI
 
-`.github/workflows/ci.yml`: на push в `main` и PR — `uv sync --frozen`, pyflakes, `pytest`.
+`.github/workflows/ci.yml`: на push в `main` и PR — `uv sync --frozen`, pyflakes, `pytest --cov`. Зависимости обновляет `.github/dependabot.yml` (weekly: `uv`, `github-actions`).
 Локальный эквивалент:
 ```bash
 uv sync --frozen
 uv run --with pyflakes python -m pyflakes bot.py catalog.py config.py conversion.py database.py keyboards.py localization.py math_parser.py query.py rates.py settings.py
-uv run pytest -q
+uv run pytest -q --cov --cov-report=term-missing
 ```
 
 ## Валидация
@@ -105,12 +105,13 @@ uv run pytest tests/ -x          # остановиться на первом п
 ```
 
 Тесты покрывают:
-- `catalog` — разбор алиасов/символов/кодов и согласованность таблиц
-- `query` — числа, «к/кк», выражения, режимы `simplified`/`standard`/`advanced`
+- `catalog` — разбор алиасов/символов/кодов (ru и en) и согласованность таблиц
+- `query` — числа, «к/кк», выражения, режимы `simplified`/`standard`/`advanced`, английские слова
 - `rates` — порядок источников, фоллбек, категории, кэш, кулдаун, HTTP-адаптеры (через `StubClient`, без сети)
 - `conversion` — кросс-курс через USD, политика целей, форматирование строк
 - `database` — `Preferences`, валидация, выбор валют
 - `math_parser` — вычисление выражений и отделение валюты
+- `bot` (`test_bot_smoke`) — клавиатуры и диспетчер без сети: `dp.feed_update` + подмена `Message.answer`
 
 ## Code Style
 
