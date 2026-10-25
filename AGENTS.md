@@ -1,53 +1,54 @@
 # AGENTS.md — NekoCurrencies
 
-## Проект
+## Project
 
-Telegram-бот конвертации валют. Frankfurter — основной фиатный источник, НБРБ — официальные BYN, CoinGecko — крипта, CurrencyFreaks/ExchangeRate — фоллбек.
+Telegram currency-conversion bot. Frankfurter is the primary fiat source, NBRB provides official BYN rates, CoinGecko covers crypto, CurrencyFreaks/ExchangeRate act as fallbacks.
 
-## Структура
+## Layout
 
-| Файл | Назначение | Строк |
+| File | Purpose | Lines |
 |---|---|---|
-| `bot.py` | Хендлеры, `ContextMiddleware`, rate limit, профиль бота, `main()` | 519 |
-| `query.py` | `Query(amount, currency)`, `parse(text, mode)` — числа, слова, выражения | 159 |
-| `conversion.py` | Политика целей, кросс-курс через USD, отрисовка ответа | 127 |
-| `rates.py` | `RateSource`-адаптеры, `RateService` — порядок опроса, кэш, кулдаун | 301 |
-| `catalog.py` | Каталог валют: коды, категории, подписи, алиасы (ru + en), символы | 273 |
-| `settings.py` | Реестр настроек: режимы, источники API, оформление, языки | 81 |
-| `database.py` | `UserDatabase` + `Preferences` — SQLite, WAL, миграции | 194 |
-| `math_parser.py` | `MathParser` — только вычисление выражений | 112 |
-| `keyboards.py` | Inline-клавиатуры (строятся из `settings`/`catalog`/`t`) | 153 |
-| `localization.py` | `TEXTS` dict, `t()` функция | 358 |
-| `config.py` | Только переменные окружения и URL провайдеров | 33 |
-| `tests/` | pytest-тесты (165 тестов, покрытие в CI) | 841 |
+| `bot.py` | Handlers, `ContextMiddleware`, rate limit, bot profile, `main()` | 519 |
+| `query.py` | `Query(amount, currency)`, `parse(text, mode)` — numbers, words, expressions | 159 |
+| `conversion.py` | Target policy, cross-rate through USD, reply rendering | 127 |
+| `rates.py` | `RateSource` adapters, `RateService` — provider order, cache, cooldown | 301 |
+| `catalog.py` | Currency catalogue: codes, categories, labels, aliases (ru + en), symbols | 273 |
+| `settings.py` | Registry of settings: modes, API sources, appearance, languages | 81 |
+| `database.py` | `UserDatabase` + `Preferences` — SQLite, WAL, migrations | 194 |
+| `math_parser.py` | `MathParser` — expression evaluation only | 112 |
+| `keyboards.py` | Inline keyboards (built from `settings`/`catalog`/`t`) | 153 |
+| `localization.py` | `TEXTS` dict, `t()` function | 358 |
+| `config.py` | Environment variables and provider URLs only | 33 |
+| `tests/` | pytest tests (165 tests, coverage reported in CI) | 841 |
 
-## Запуск
+## Running
 
 ```bash
-uv sync                    # установить зависимости
-cp .env.example .env       # настроить переменные
-uv run python bot.py       # запуск
-uv run pytest tests/ -v    # тесты
+uv sync                    # install dependencies
+cp .env.example .env       # configure variables
+uv run python bot.py       # start
+uv run pytest tests/ -v    # tests
 ```
 
-## Переменные окружения
+## Environment variables
 
-| Переменная | Обязательная | Описание |
+| Variable | Required | Description |
 |---|---|---|
-| `BOT_TOKEN` | ✅ | Токен Telegram-бота (@BotFather) |
-| `CURRENCY_FREAKS_API_KEY` | ❌ | API-ключ CurrencyFreaks (фоллбек для крипты) |
-| `EXCHANGE_RATE_API_KEY` | ❌ | API-ключ ExchangeRate-API (резерв) |
-| `ADMIN_IDS` | ❌ | ID администраторов через запятую |
-| `RATE_LIMIT_PERIOD` | ❌ | Интервал rate limit, сек (1.0) |
-| `CACHE_LIFETIME` | ❌ | TTL кэша курсов, сек (600) |
-| `LOG_LEVEL`, `LOG_FILE` | ❌ | Логи (INFO, `logs/bot.log`) |
-| `DATABASE_FILE` | ❌ | Путь к SQLite (`data/users.db`) |
+| `BOT_TOKEN` | ✅ | Telegram bot token (@BotFather) |
+| `CURRENCY_FREAKS_API_KEY` | ❌ | CurrencyFreaks API key (crypto fallback) |
+| `EXCHANGE_RATE_API_KEY` | ❌ | ExchangeRate-API key (backup) |
+| `ADMIN_IDS` | ❌ | Comma-separated admin IDs (exempt from rate limit) |
+| `RATE_LIMIT_PERIOD` | ❌ | Rate limit interval, seconds (1.0) |
+| `CACHE_LIFETIME` | ❌ | Rate cache TTL, seconds (600) |
+| `LOG_LEVEL`, `LOG_FILE` | ❌ | Logging (INFO, `logs/bot.log`) |
+| `DATABASE_FILE` | ❌ | SQLite path (`data/users.db`) |
+| `BOT_VERSION` | ❌ | Version shown by `/version` (1.2.0) |
 
-## База данных
+## Database
 
-SQLite (stdlib `sqlite3`), WAL mode. Файл: `data/users.db` (env `DATABASE_FILE`), создаётся автоматически. Схема версионируется через `PRAGMA user_version` (`SCHEMA_VERSION = 1`), миграции — в `_migrate()`.
+SQLite (stdlib `sqlite3`), WAL mode. File: `data/users.db` (env `DATABASE_FILE`), created automatically. The schema is versioned through `PRAGMA user_version` (`SCHEMA_VERSION = 1`), migrations live in `_migrate()`.
 
-Схема:
+Schema:
 ```sql
 CREATE TABLE users (
     user_id INTEGER PRIMARY KEY,
@@ -63,82 +64,83 @@ CREATE TABLE users (
 );
 ```
 
-## API источники курсов
+## API rate sources
 
-Единственный реестр — `settings.API_SOURCES` (значение настройки → провайдер, приоритет, ключ подписи, `selectable`):
+The single registry is `settings.API_SOURCES` (setting value → provider, priority, label key, `selectable`):
 
-| Значение | Провайдер | Категории | Ключ |
+| Value | Provider | Categories | Key |
 |---|---|---|---|
-| `1` | `frankfurter` | fiat | нет |
-| `2` | `nbrb` | fiat | нет |
+| `1` | `frankfurter` | fiat | none |
+| `2` | `nbrb` | fiat | none |
 | `3` | `currencyfreaks` | fiat, crypto | `CURRENCY_FREAKS_API_KEY` |
 | `4` | `exchangerate` | fiat | `EXCHANGE_RATE_API_KEY` |
-| `5` | `coingecko` | crypto | нет, `selectable=False` (только неявный фоллбек) |
+| `5` | `coingecko` | crypto | none, `selectable=False` (implicit fallback only) |
 
-Выбор в `/settings` → «Источник курсов» — `auto` или 1–4; выбранный провайдер идёт первым, остальные остаются фоллбеком (`RateService._chain`).
+The choice in `/settings` → "Rate source" is `auto` or 1–4; the selected provider goes first, the rest stay as fallbacks (`RateService._chain`).
 
-Адаптеры живут в `rates.py` (`RateSource.fetch(client, base) -> dict | None`) и не знают друг о друге. `RateService.quotes(base, required, preference)` пропускает источник, если у него нет нужной категории валют (`catalog.category`), поэтому фиатный источник не блокирует крипту. Кэш — по `(провайдер, база)`, TTL `CACHE_LIFETIME` (600 с); после сбоя источник пропускается `FAILURE_COOLDOWN` (60 с).
+Adapters live in `rates.py` (`RateSource.fetch(client, base) -> dict | None`) and know nothing about each other. `RateService.quotes(base, required, preference)` skips a source that does not serve the requested currency categories (`catalog.category`), so a fiat source never blocks crypto. The cache is keyed by `(provider, base)` with TTL `CACHE_LIFETIME` (600 s); after a failure a source is skipped for `FAILURE_COOLDOWN` (60 s).
 
 ## CI
 
-`.github/workflows/ci.yml`: на push в `main` и PR — `uv sync --frozen`, pyflakes, `pytest --cov`. Зависимости обновляет `.github/dependabot.yml` (weekly: `uv`, `github-actions`).
-Локальный эквивалент:
+`.github/workflows/ci.yml`: on push to `main` and on PRs — `uv sync --frozen`, pyflakes, `pytest --cov`. Dependencies are updated by `.github/dependabot.yml` (weekly: `uv`, `github-actions`).
+Local equivalent:
 ```bash
 uv sync --frozen
 uv run --with pyflakes python -m pyflakes bot.py catalog.py config.py conversion.py database.py keyboards.py localization.py math_parser.py query.py rates.py settings.py
 uv run pytest -q --cov --cov-report=term-missing
 ```
 
-## Валидация
+## Validation
 
-Источник значений — `settings.py`; дублировать списки в других модулях нельзя.
+The source of truth is `settings.py`; do not duplicate these lists in other modules.
 
 - `processing_mode`: `settings.PROCESSING_MODES` (`simplified` | `standard` | `advanced`)
 - `api_source`: `settings.API_VALUES` (`auto` | `1` | `2` | `3` | `4`)
 - `language`: `settings.LANGUAGES` (`ru` | `en`)
 
-## Тестирование
+## Testing
 
 ```bash
-uv run pytest tests/ -v          # все тесты
-uv run pytest tests/ -x          # остановиться на первом падении
+uv run pytest tests/ -v          # all tests
+uv run pytest tests/ -x          # stop at the first failure
 ```
 
-Тесты покрывают:
-- `catalog` — разбор алиасов/символов/кодов (ru и en) и согласованность таблиц
-- `query` — числа, «к/кк», выражения, режимы `simplified`/`standard`/`advanced`, английские слова
-- `rates` — порядок источников, фоллбек, категории, кэш, кулдаун, HTTP-адаптеры (через `StubClient`, без сети)
-- `conversion` — кросс-курс через USD, политика целей, форматирование строк
-- `database` — `Preferences`, валидация, выбор валют
-- `math_parser` — вычисление выражений и отделение валюты
-- `bot` (`test_bot_smoke`) — клавиатуры и диспетчер без сети: `dp.feed_update` + подмена `Message.answer`
+What the tests cover:
+- `catalog` — alias/symbol/code resolution (ru and en) and table consistency
+- `query` — numbers, `k`/`kk` suffixes, expressions, `simplified`/`standard`/`advanced` modes, English words
+- `rates` — provider order, fallback, categories, cache, cooldown, HTTP adapters (via `StubClient`, no network)
+- `conversion` — cross-rate through USD, target policy, string formatting
+- `database` — `Preferences`, validation, currency selection
+- `math_parser` — expression evaluation and currency separation
+- `bot` (`test_bot_smoke`) — keyboards and dispatcher without network: `dp.feed_update` + patched `Message.answer`
 
 ## Code Style
 
-- Python 3.11+, type hints для всех функций
-- Docstrings для публичных методов
-- `logging` вместо `print()`
+- Python 3.11+, type hints on every function
+- Docstrings on public methods
+- `logging` instead of `print()`
 - PEP 8, line-length 100
 
-## Важные детали
+## Important details
 
-- `BOT_TOKEN` читается при импорте, но проверяется в `main()` — модули импортируются без токена (нужно для тестов)
-- `database.py` — синхронный SQLite. Для масштабирования перейти на aiosqlite
-- `database.preferences(user_id)` — один снимок всех настроек (`Preferences`, frozen dataclass); отдельных геттеров больше нет
-- `math_parser.py` — использует `eval()` с `{"__builtins__": {}}` (безопасно благодаря `_is_safe_expression`)
-- `catalog.py` — единственный источник фактов о валютах: код, категория, подпись, флаг, символ, алиасы
-- `settings.py` — единственный источник допустимых значений настроек
-- `keyboards.py` — состав кнопок берётся из `settings`/`catalog`, подписи из `t()`; литералов в клавиатурах нет
-- `conversion.convert` считает кросс-курс через USD: `amount / rate[from] * rate[to]`
-- Режимы: `simplified` | `standard` | `advanced` (не `simple`/`extended`)
+- `BOT_TOKEN` is read at import time but validated in `main()` — modules stay importable without a token (needed for tests)
+- `database.py` uses synchronous SQLite. Move to aiosqlite if scaling is needed
+- `database.preferences(user_id)` returns a single snapshot of all settings (`Preferences`, frozen dataclass); the per-field getters are gone
+- `math_parser.py` uses `eval()` with `{"__builtins__": {}}` (safe thanks to `_is_safe_expression`)
+- `catalog.py` is the only source of currency facts: code, category, label, flag, symbol, aliases
+- `settings.py` is the only source of allowed setting values
+- `keyboards.py` takes its buttons from `settings`/`catalog` and its labels from `t()`; there are no literals in keyboards
+- `conversion.convert` computes the cross-rate through USD: `amount / rate[from] * rate[to]`
+- Modes: `simplified` | `standard` | `advanced` (not `simple`/`extended`)
+- Only Latin command names are registered (`/start`, `/help`, `/settings`, `/version`); Cyrillic aliases were removed
 
-## При внесении изменений
+## When making changes
 
-1. Новая валюта или алиас — только `catalog.py`
-2. Новый вариант настройки / источник курсов — `settings.py` (+ адаптер в `rates.py`), база и клавиатуры подхватят сами
-3. Новая подпись на кнопке — ключ в `localization.py` для `ru` и `en` (паритет обязателен)
-4. Синтаксис: `python3 -c "import ast; ast.parse(open('файл.py').read())"`
-5. Импорты: `uv run python -c "import модуль"`
-6. Тесты и линт: `uv run pytest tests/ -v` и pyflakes по списку из CI
-7. Не добавлять `print()` — использовать `logger`
-8. Не хранить секреты в коде — только `.env`
+1. A new currency or alias — `catalog.py` only
+2. A new setting option / rate source — `settings.py` (+ an adapter in `rates.py`); the database and keyboards pick it up automatically
+3. A new button label — a key in `localization.py` for both `ru` and `en` (parity is mandatory)
+4. Syntax: `python3 -c "import ast; ast.parse(open('file.py').read())"`
+5. Imports: `uv run python -c "import module"`
+6. Tests and lint: `uv run pytest tests/ -v` and pyflakes over the CI file list
+7. No `print()` — use `logger`
+8. No secrets in code — only `.env`
