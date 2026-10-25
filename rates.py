@@ -94,7 +94,7 @@ class NbrbSource(RateSource):
         try:
             response = await client.get(f"{NBRB_BASE_URL}/rates?periodicity=0")
             if response.status_code != 200:
-                logger.warning("НБРБ HTTP %s", response.status_code)
+                logger.warning("NBRB HTTP %s", response.status_code)
                 return None
             to_byn = {'BYN': 1.0}
             for item in response.json():
@@ -105,7 +105,7 @@ class NbrbSource(RateSource):
                     to_byn[code] = float(rate) / float(scale)
             return _convert_base(to_byn, base)
         except Exception as error:
-            logger.warning("НБРБ error: %s", error)
+            logger.warning("NBRB error: %s", error)
             return None
 
 
@@ -264,7 +264,7 @@ class RateService:
                 break
 
         if not rates:
-            logger.warning("Все API недоступны для базы %s", base)
+            logger.warning("All APIs are unavailable for base %s", base)
         return Quotes(rates, sources)
 
     def _chain(self, preference: str) -> list[str]:
@@ -292,7 +292,7 @@ class RateService:
             return None
         rates.setdefault(base, 1.0)
         self._cache[key] = (time.time(), rates)
-        logger.info("Курсы получены от %s (база: %s)", source.name, base)
+        logger.info("Rates received from %s (base: %s)", source.name, base)
         return rates
 
     def _http_client(self) -> httpx.AsyncClient:

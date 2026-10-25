@@ -110,7 +110,7 @@ class RateLimitMiddleware(BaseMiddleware):
 
 async def on_startup(svc: Services):
     """Publishes what is visible before the first message to Telegram: commands and profile."""
-    logger.info("Запуск бота...")
+    logger.info("Starting bot...")
     for lang in settings.LANGUAGES:
         await svc.bot.set_my_commands([
             types.BotCommand(command="start", description=t('cmd_start_desc', lang)),
@@ -120,11 +120,11 @@ async def on_startup(svc: Services):
         ], language_code=lang)
         await svc.bot.set_my_short_description(t('bot_short_description', lang), language_code=lang)
         await svc.bot.set_my_description(t('bot_description', lang), language_code=lang)
-    logger.info("Команды и описание бота установлены")
+    logger.info("Bot commands and description are set")
 
 
 async def on_shutdown(svc: Services):
-    logger.info("Завершение работы...")
+    logger.info("Shutting down...")
     await svc.close()
 
 
@@ -500,7 +500,7 @@ async def main():
 
     try:
         await on_startup(services)
-        logger.info("Запуск polling...")
+        logger.info("Starting polling...")
         await services.dp.start_polling(
             services.bot,
             skip_updates=True,
@@ -508,9 +508,9 @@ async def main():
             drop_pending_updates=True,
         )
     except KeyboardInterrupt:
-        logger.info("Бот остановлен")
+        logger.info("Bot stopped")
     except Exception as error:
-        logger.error("Критическая ошибка: %s", error)
+        logger.error("Fatal error: %s", error)
     finally:
         await on_shutdown(services)
 
