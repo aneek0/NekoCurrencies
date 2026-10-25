@@ -15,8 +15,8 @@ TEXTS: dict[str, dict[str, str]] = {
             "🤖 **Справка по боту конвертации валют**\n\n"
             "**Основные возможности:**\n"
             "• Конвертация валют в реальном времени\n"
-            "• Поддержка 150+ фиатных валют\n"
-            "• Поддержка 25+ криптовалют\n"
+            "• Поддержка {fiat} фиатных валют\n"
+            "• Поддержка {crypto} криптовалют\n"
             "• Распознавание чисел в тексте\n"
             "• Поддержка W2N (слова в числа)\n"
             "• Математические выражения: \"(20 + 5) * 4 доллара\" → \"$100\"\n\n"
@@ -162,6 +162,16 @@ TEXTS: dict[str, dict[str, str]] = {
         'appearance_symbols': "Символы",
         'appearance_on': "вкл",
         'appearance_off': "выкл",
+        'bot_short_description': (
+            "Конвертация валют прямо в чате: «100 долларов», «50€», «(20 + 5) * 4$»"
+        ),
+        'bot_description': (
+            "💱 Напишите сумму и валюту — бот пересчитает её в выбранные вами валюты "
+            "по актуальным курсам.\n\n"
+            "/start — главное меню\n"
+            "/settings — режим обработки, целевые валюты, источник курсов, язык\n\n"
+            "Работает в личных сообщениях, группах и в инлайн-режиме: @бот 20 баксов."
+        ),
     },
     'en': {
         'welcome': (
@@ -177,8 +187,8 @@ TEXTS: dict[str, dict[str, str]] = {
             "🤖 **Currency Converter Bot Help**\n\n"
             "**Features:**\n"
             "• Real-time currency conversion\n"
-            "• 150+ fiat currencies supported\n"
-            "• 25+ cryptocurrencies supported\n"
+            "• {fiat} fiat currencies supported\n"
+            "• {crypto} cryptocurrencies supported\n"
             "• Number recognition in text\n"
             "• W2N support (words to numbers)\n"
             "• Mathematical expressions: \"(20 + 5) * 4 dollars\" → \"$100\"\n\n"
@@ -324,6 +334,16 @@ TEXTS: dict[str, dict[str, str]] = {
         'appearance_symbols': "Symbols",
         'appearance_on': "on",
         'appearance_off': "off",
+        'bot_short_description': (
+            "Convert currencies right in the chat: \"100 dollars\", \"50€\", \"(20 + 5) * 4$\""
+        ),
+        'bot_description': (
+            "💱 Type an amount with a currency and the bot converts it into the currencies "
+            "you picked, using up-to-date rates.\n\n"
+            "/start — main menu\n"
+            "/settings — processing mode, target currencies, rate source, language\n\n"
+            "Works in private chats, groups and inline: @bot 20 bucks."
+        ),
     },
 }
 

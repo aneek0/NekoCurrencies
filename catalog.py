@@ -165,6 +165,33 @@ INPUT_SYMBOLS = {
     '₸': 'KZT', '₩': 'KRW', '₹': 'INR', '₿': 'BTC', 'Ξ': 'ETH', '💎': 'TON',
 }
 
+# Латиница: интерфейс двуязычный, поэтому «100 dollars» должно работать так же,
+# как «100 долларов». Только одиночные слова — многословные имена разбирает
+# resolve_in_text по границам слов, но не resolve() из одного токена.
+EN_ALIASES = {
+    'dollar': 'USD', 'dollars': 'USD', 'buck': 'USD', 'bucks': 'USD',
+    'greenback': 'USD', 'greenbacks': 'USD',
+    'euro': 'EUR', 'euros': 'EUR',
+    'pound': 'GBP', 'pounds': 'GBP', 'quid': 'GBP', 'sterling': 'GBP',
+    'yen': 'JPY', 'yuan': 'CNY', 'yuans': 'CNY', 'rmb': 'CNY', 'renminbi': 'CNY',
+    'ruble': 'RUB', 'rubles': 'RUB', 'rouble': 'RUB', 'roubles': 'RUB',
+    'hryvnia': 'UAH', 'hryvnias': 'UAH', 'hryvna': 'UAH', 'hryvnas': 'UAH',
+    'tenge': 'KZT', 'franc': 'CHF', 'francs': 'CHF',
+    'rupee': 'INR', 'rupees': 'INR', 'won': 'KRW',
+    'lira': 'TRY', 'reais': 'BRL', 'zloty': 'PLN', 'zlotys': 'PLN',
+    'krona': 'SEK', 'krone': 'NOK', 'koruna': 'CZK', 'forint': 'HUF',
+    'rand': 'ZAR', 'shekel': 'ILS', 'shekels': 'ILS', 'baht': 'THB',
+    'dong': 'VND', 'rupiah': 'IDR', 'ringgit': 'MYR', 'dirham': 'AED',
+    'riyal': 'SAR', 'naira': 'NGN',
+    'bitcoin': 'BTC', 'bitcoins': 'BTC', 'satoshi': 'BTC', 'satoshis': 'BTC',
+    'ethereum': 'ETH', 'ether': 'ETH', 'tether': 'USDT', 'ripple': 'XRP',
+    'litecoin': 'LTC', 'dogecoin': 'DOGE', 'cardano': 'ADA', 'solana': 'SOL',
+    'polkadot': 'DOT', 'chainlink': 'LINK', 'uniswap': 'UNI',
+    'avalanche': 'AVAX', 'cosmos': 'ATOM', 'tron': 'TRX', 'stellar': 'XLM',
+    'toncoin': 'TON',
+}
+ALIASES.update(EN_ALIASES)
+
 FIAT_CODES = tuple(FIAT)
 CRYPTO_CODES = tuple(CRYPTO)
 ALL_CODES = FIAT_CODES + CRYPTO_CODES

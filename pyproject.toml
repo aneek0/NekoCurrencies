@@ -47,8 +47,19 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
 
+[tool.coverage.run]
+source = [
+    "bot", "catalog", "config", "conversion", "database",
+    "keyboards", "localization", "math_parser", "query", "rates", "settings",
+]
+
+[tool.coverage.report]
+skip_covered = true
+show_missing = true
+
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
     "pytest-asyncio>=0.26.0",
+    "pytest-cov>=7.1.0",
 ]

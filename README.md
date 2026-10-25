@@ -5,14 +5,14 @@
 ![aiogram](https://img.shields.io/badge/aiogram-3.x-2CA5E0)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Telegram-бот, который сам находит сумму и валюту в тексте сообщения и пересчитывает её в ваши валюты. Без команд и меню: написали `100 долларов` — получили ответ в евро, рублях и биткоине.
+A Telegram bot that finds an amount and a currency in your message and converts it into the currencies you care about. No commands, no menus: type `100 dollars` and get the answer in euros, rubles and bitcoin.
 
-## Как это выглядит
+## What it looks like
 
 ```
-Вы:  100 долларов
+You: 100 dollars
 
-Бот: 🇺🇸100.00$ USD
+Bot: 🇺🇸100.00$ USD
 
      🇪🇺92.00€ EUR
      🇷🇺9,250.00₽ RUB
@@ -21,120 +21,120 @@ Telegram-бот, который сам находит сумму и валюту
      0.00149254 BTC
 ```
 
-Курсы в примере условные — подставлены заглушкой вместо живого источника.
+Rates in the example are made up — a stub source replaced the live one.
 
-## Что понимает
+## What it understands
 
-| Сообщение | Что распознаёт | Нужный режим |
+| Message | What gets recognised | Mode |
 |---|---|---|
-| `100 долларов`, `50€`, `$50`, `1000 рублей` | сумма + валюта | любой |
-| `1.5к баксов`, `1.5кк`, `1,5к usd` | сокращения `к`/`кк` | любой |
-| `0.5 биткоин`, `10 битков` | крипта | любой |
-| `EUR 20`, `20 usd` | код валюты перед суммой | стандартный |
-| `(20 + 5) * 4 доллара` | арифметика | стандартный |
-| `двадцать пять евро` | числа словами (W2N/M2N) | расширенный |
+| `100 dollars`, `50€`, `$50`, `1000 rubles` | amount + currency | any |
+| `1.5k bucks`, `1.5kk`, `1,5к usd` | `k`/`kk` shorthand | any |
+| `0.5 bitcoin`, `10 bitkov` | crypto | any |
+| `EUR 20`, `20 usd` | currency code before the amount | standard |
+| `(20 + 5) * 4 dollars` | arithmetic | standard |
+| `twenty five euros`, `двадцать пять евро` | numbers written as words (W2N/M2N) | advanced |
 
-126 фиатных валют и 27 криптовалют, включая алиасы вроде `бакс`, `р.`, `тенге`, `тг`, `биток`.
+126 fiat currencies and 27 cryptocurrencies, with aliases in both languages: `dollars`, `bucks`, `pounds`, `euros`, `rubles`, `tenge`, `bitcoin`, `ethereum` alongside `доллары`, `баксы`, `рубли`, `тенге`, `биток`.
 
-## Режимы обработки
+## Processing modes
 
-| Режим | Что делает | Кому |
+| Mode | What it does | Who it is for |
 |---|---|---|
-| `simplified` | только «число + валюта», без выражений и слов | тем, кто хочет предсказуемости |
-| `standard` *(по умолчанию)* | + арифметика, + код валюты перед суммой | большинству |
-| `advanced` | + числа словами и разрядность | максимальное понимание |
+| `simplified` | only "number + currency", no expressions, no words | those who want predictability |
+| `standard` *(default)* | + arithmetic, + currency code before the amount | most people |
+| `advanced` | + numbers written as words and spelled-out scales | maximum understanding |
 
-Переключение — `/settings` → «Режим обработки».
+Switch it in `/settings` → "Processing mode".
 
-## Быстрый старт
+## Quick start
 
 ```bash
 git clone https://github.com/aneek0/NekoCurrencies.git
 cd NekoCurrencies
-cp .env.example .env      # вписать BOT_TOKEN, остальное по желанию
+cp .env.example .env      # fill in BOT_TOKEN, the rest is optional
 uv sync
 uv run python bot.py
 ```
 
-## Команды
+## Commands
 
-| Команда | Назначение |
+| Command | Purpose |
 |---|---|
-| `/start` | главное меню |
-| `/help` | справка |
-| `/settings` | режим, валюты, источник курсов, отладка, язык, оформление |
-| `/version` | версия |
+| `/start` | main menu |
+| `/help` | help |
+| `/settings` | mode, currencies, rate source, debug, language, appearance |
+| `/version` | version |
 
-В `/settings` → «Оформление» три переключателя: флаги, коды валют, символы. Комбинации дают
+`/settings` → "Appearance" has three toggles: flags, currency codes, symbols. The combinations give
 `🇺🇸1,234.50$ USD` → `1,234.50$ USD` → `1,234.50 USD` → `1,234.50`.
 
-## Инлайн-режим
+## Inline mode
 
-`@ваш_бот 20 баксов` — ответ прямо в любом чате, без добавления бота в него. Если валюты не выбраны в настройках, берётся набор по умолчанию: USD, EUR, RUB, BYN, BTC.
+`@your_bot 20 bucks` — an answer right in any chat, without adding the bot to it. If no currencies are picked in the settings, the default set is used: USD, EUR, RUB, BYN, BTC.
 
-## Источники курсов
+## Rate sources
 
-Приоритет при `api_source=auto`:
+Priority when `api_source=auto`:
 
-1. **Frankfurter** — фиат, 84 центральных банка (без ключа)
-2. **НБРБ** — официальные курсы BYN (без ключа)
-3. **CurrencyFreaks** — фиат и крипта (нужен ключ)
-4. **ExchangeRate-API** — резервный фиат (нужен ключ)
-5. **CoinGecko** — крипта к USD (без ключа, включается сам)
+1. **Frankfurter** — fiat, 84 central banks (no key)
+2. **NBRB** — official BYN rates (no key)
+3. **CurrencyFreaks** — fiat and crypto (key required)
+4. **ExchangeRate-API** — backup fiat (key required)
+5. **CoinGecko** — crypto against USD (no key, kicked in automatically)
 
-Фиатный источник не блокирует крипту: провайдер подбирается под запрошенные валюты. В `/settings` → «Источник курсов» можно поставить любой из 1–4 первым — остальные останутся фоллбеком. Курсы кэшируются на `CACHE_LIFETIME` секунд, упавший источник пропускается на минуту, ответ на пользователя — не чаще раза в `RATE_LIMIT_PERIOD` секунд (админы из `ADMIN_IDS` не ограничены).
+A fiat source never blocks crypto: the provider is chosen for the currencies being requested. In `/settings` → "Rate source" any of 1–4 can be put first — the rest stay as fallbacks. Rates are cached for `CACHE_LIFETIME` seconds, a failing source is skipped for a minute, and a user gets at most one reply per `RATE_LIMIT_PERIOD` seconds (admins from `ADMIN_IDS` are exempt).
 
-## Переменные окружения
+## Environment variables
 
-| Переменная | Обязательная | Описание |
+| Variable | Required | Description |
 |---|---|---|
-| `BOT_TOKEN` | ✅ | Токен Telegram-бота (@BotFather) |
-| `CURRENCY_FREAKS_API_KEY` | ❌ | API-ключ CurrencyFreaks (фоллбек для крипты) |
-| `EXCHANGE_RATE_API_KEY` | ❌ | API-ключ ExchangeRate-API (резерв) |
-| `ADMIN_IDS` | ❌ | ID администраторов через запятую (без rate limit) |
-| `RATE_LIMIT_PERIOD` | ❌ | Минимальный интервал запросов, сек (1.0) |
-| `CACHE_LIFETIME` | ❌ | Время жизни кэша курсов, сек (600) |
-| `LOG_LEVEL`, `LOG_FILE` | ❌ | Уровень и файл логов (INFO, `logs/bot.log`) |
-| `DATABASE_FILE` | ❌ | Путь к SQLite (`data/users.db`) |
-| `BOT_VERSION` | ❌ | Версия, которую показывает `/version` (1.1.0) |
+| `BOT_TOKEN` | ✅ | Telegram bot token (@BotFather) |
+| `CURRENCY_FREAKS_API_KEY` | ❌ | CurrencyFreaks API key (crypto fallback) |
+| `EXCHANGE_RATE_API_KEY` | ❌ | ExchangeRate-API key (backup) |
+| `ADMIN_IDS` | ❌ | Comma-separated admin IDs (exempt from rate limit) |
+| `RATE_LIMIT_PERIOD` | ❌ | Minimum interval between requests, seconds (1.0) |
+| `CACHE_LIFETIME` | ❌ | Rate cache TTL, seconds (600) |
+| `LOG_LEVEL`, `LOG_FILE` | ❌ | Log level and file (INFO, `logs/bot.log`) |
+| `DATABASE_FILE` | ❌ | SQLite path (`data/users.db`) |
+| `BOT_VERSION` | ❌ | Version shown by `/version` (1.1.0) |
 
-## Как устроено
+## How it works
 
 ```mermaid
 flowchart LR
-    msg[Сообщение] --> parse["query.parse<br/>сумма + валюта"]
-    parse --> targets["conversion.targets_for<br/>куда считать"]
-    targets --> quotes["rates.quotes<br/>курсы с фоллбеком"]
-    quotes --> convert["conversion.convert<br/>кросс-курс через USD"]
-    convert --> answer[Ответ]
+    msg[Message] --> parse["query.parse<br/>amount + currency"]
+    parse --> targets["conversion.targets_for<br/>where to convert"]
+    targets --> quotes["rates.quotes<br/>rates with fallback"]
+    quotes --> convert["conversion.convert<br/>cross-rate via USD"]
+    convert --> answer[Reply]
 ```
 
-Каждый слой знает только соседа: разбор не знает про сеть, источники курсов не знают про Telegram, отрисовка не знает, откуда взялись цифры. Поэтому новый провайдер — это адаптер в `rates.py` плюс одна строка в `settings.py`, а новая валюта — строка в `catalog.py`.
+Each layer knows only its neighbour: parsing knows nothing about the network, rate sources know nothing about Telegram, rendering does not care where the numbers came from. That is why a new provider is an adapter in `rates.py` plus one line in `settings.py`, and a new currency is one line in `catalog.py`.
 
-## Структура проекта
+## Project structure
 
 ```
-bot.py          — Telegram: хендлеры, middleware, запуск
-query.py        — разбор сообщения в Query(сумма, валюта)
-conversion.py   — политика конвертации и отрисовка ответа
-rates.py        — источники курсов, порядок опроса, кэш, кулдаун
-catalog.py      — каталог валют: коды, категории, подписи, алиасы, символы
-settings.py     — реестр настроек: режимы, источники API, оформление, языки
-math_parser.py  — вычисление арифметических выражений
-database.py     — SQLite-хранилище настроек (Preferences)
-keyboards.py    — inline-клавиатуры (строятся из settings/catalog)
-localization.py — тексты (ru/en)
-config.py       — переменные окружения и URL провайдеров
-tests/          — тесты (pytest)
+bot.py          — Telegram: handlers, middleware, startup
+query.py        — parses a message into Query(amount, currency)
+conversion.py   — conversion policy and reply rendering
+rates.py        — rate sources, provider order, cache, cooldown
+catalog.py      — currency catalogue: codes, categories, labels, aliases, symbols
+settings.py     — registry of settings: modes, API sources, appearance, languages
+math_parser.py  — arithmetic expression evaluation
+database.py     — SQLite settings storage (Preferences)
+keyboards.py    — inline keyboards (built from settings/catalog)
+localization.py — texts (ru/en)
+config.py       — environment variables and provider URLs
+tests/          — pytest tests
 ```
 
-## Тесты
+## Tests
 
 ```bash
-uv run pytest tests/ -v
+uv run pytest -q --cov --cov-report=term-missing
 ```
 
-Локальный эквивалент CI:
+Local equivalent of CI:
 
 ```bash
 uv run --with pyflakes python -m pyflakes \
@@ -142,14 +142,14 @@ uv run --with pyflakes python -m pyflakes \
   keyboards.py localization.py math_parser.py query.py rates.py settings.py
 ```
 
-## Технологии
+## Technologies
 
 - **Python 3.11+**
 - **aiogram 3.x** — Telegram Bot API
-- **httpx** — HTTP-клиент
-- **sqlite3** — база данных (WAL mode)
-- **uv** — менеджер зависимостей
+- **httpx** — HTTP client
+- **sqlite3** — database (WAL mode)
+- **uv** — dependency manager
 
-## Лицензия
+## License
 
 MIT

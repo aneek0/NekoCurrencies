@@ -25,5 +25,5 @@ jobs:
           bot.py catalog.py config.py conversion.py database.py
           keyboards.py localization.py math_parser.py query.py rates.py settings.py
 
-      - name: Tests
-        run: uv run pytest -q
+      - name: Tests (with coverage)
+        run: uv run pytest -q --cov --cov-report=term-missing

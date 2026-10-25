@@ -8,7 +8,7 @@ Telegram-бот конвертации валют. Frankfurter — основн�
 
 | Файл | Назначение | Строк |
 |---|---|---|
-| `bot.py` | Хендлеры, `ContextMiddleware`, rate limit, `main()` | 514 |
+| `bot.py` | Хендлеры, `ContextMiddleware`, rate limit, профиль бота, `main()` | 519 |
 | `query.py` | `Query(amount, currency)`, `parse(text, mode)` — числа, слова, выражения | 159 |
 | `conversion.py` | Политика целей, кросс-курс через USD, отрисовка ответа | 127 |
 | `rates.py` | `RateSource`-адаптеры, `RateService` — порядок опроса, кэш, кулдаун | 301 |
@@ -17,9 +17,9 @@ Telegram-бот конвертации валют. Frankfurter — основн�
 | `database.py` | `UserDatabase` + `Preferences` — SQLite, WAL, миграции | 194 |
 | `math_parser.py` | `MathParser` — только вычисление выражений | 112 |
 | `keyboards.py` | Inline-клавиатуры (строятся из `settings`/`catalog`/`t`) | 153 |
-| `localization.py` | `TEXTS` dict, `t()` функция | 338 |
+| `localization.py` | `TEXTS` dict, `t()` функция | 358 |
 | `config.py` | Только переменные окружения и URL провайдеров | 33 |
-| `tests/` | pytest-тесты (153 теста) | 722 |
+| `tests/` | pytest-тесты (158 тестов, покрытие в CI) | 829 |
 
 ## Запуск
 

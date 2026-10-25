@@ -22,6 +22,18 @@ class TestAmounts:
     def test_patterns(self, text, expected):
         assert parse(text) == expected
 
+    @pytest.mark.parametrize("text,expected", [
+        ("100 dollars", Query(100.0, "USD")),
+        ("1.5k bucks", Query(1500.0, "USD")),
+        ("0.5 bitcoin", Query(0.5, "BTC")),
+        ("10 bitcoins", Query(10.0, "BTC")),
+        ("100 pounds", Query(100.0, "GBP")),
+        ("5 tenge", Query(5.0, "KZT")),
+        ("hello 100 dollars please", Query(100.0, "USD")),
+    ])
+    def test_english_words(self, text, expected):
+        assert parse(text) == expected
+
     def test_thousand_separator(self):
         assert parse("1 000 долларов") == Query(1000.0, "USD")
 

@@ -109,6 +109,7 @@ class RateLimitMiddleware(BaseMiddleware):
 # ── Lifespan ───────────────────────────────────────────────
 
 async def on_startup(svc: Services):
+    """Публикует в Telegram то, что видно до первого сообщения: команды и профиль."""
     logger.info("Запуск бота...")
     for lang in settings.LANGUAGES:
         await svc.bot.set_my_commands([
@@ -117,7 +118,9 @@ async def on_startup(svc: Services):
             types.BotCommand(command="settings", description=t('cmd_settings_desc', lang)),
             types.BotCommand(command="version", description=t('cmd_version_desc', lang)),
         ], language_code=lang)
-    logger.info("Команды бота установлены")
+        await svc.bot.set_my_short_description(t('bot_short_description', lang), language_code=lang)
+        await svc.bot.set_my_description(t('bot_description', lang), language_code=lang)
+    logger.info("Команды и описание бота установлены")
 
 
 async def on_shutdown(svc: Services):
@@ -132,7 +135,9 @@ async def cmd_start(message: Message, prefs: Preferences):
 
 
 async def cmd_help(message: Message, prefs: Preferences):
-    await message.answer(t('help', prefs.language), reply_markup=get_help_keyboard(prefs.language))
+    await message.answer(
+        t('help', prefs.language, fiat=len(catalog.FIAT), crypto=len(catalog.CRYPTO)),
+        reply_markup=get_help_keyboard(prefs.language))
 
 
 async def cmd_settings(message: Message, prefs: Preferences):
