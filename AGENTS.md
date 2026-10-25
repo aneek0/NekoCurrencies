@@ -139,8 +139,10 @@ What the tests cover:
 1. A new currency or alias — `catalog.py` only
 2. A new setting option / rate source — `settings.py` (+ an adapter in `rates.py`); the database and keyboards pick it up automatically
 3. A new button label — a key in `localization.py` for both `ru` and `en` (parity is mandatory)
-4. Syntax: `python3 -c "import ast; ast.parse(open('file.py').read())"`
-5. Imports: `uv run python -c "import module"`
-6. Tests and lint: `uv run pytest tests/ -v` and pyflakes over the CI file list
-7. No `print()` — use `logger`
-8. No secrets in code — only `.env`
+4. User-facing docs: `README.md` is Russian, `docs/README_en.md` is its English twin with a language switcher — change both in one commit
+5. Comments, docstrings and log messages are English; UI texts live in `localization.py`
+6. Syntax: `python3 -c "import ast; ast.parse(open('file.py').read())"`
+7. Imports: `uv run python -c "import module"`
+8. Tests and lint: `uv run pytest tests/ -v` and pyflakes over the CI file list
+9. No `print()` — use `logger`
+10. No secrets in code — only `.env`
