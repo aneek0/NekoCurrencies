@@ -67,20 +67,32 @@ uv run python bot.py
 ## Структура проекта
 
 ```
-bot.py              — хендлеры, роутинг, запуск
-currency_service.py — получение курсов, конвертация, парсинг текста
-database.py         — SQLite-хранилище пользователей
-math_parser.py      — вычисление математических выражений
-keyboards.py        — inline-клавиатуры
-localization.py     — тексты (ru/en)
-config.py           — константы, алиасы валют, API-ключи
-tests/              — тесты (pytest)
+bot.py          — Telegram: хендлеры, middleware, запуск
+query.py        — разбор сообщения в Query(сумма, валюта) и режимы обработки
+conversion.py   — политика конвертации и отрисовка ответа
+rates.py        — источники курсов, порядок опроса, кэш, кулдаун
+catalog.py      — каталог валют: коды, категории, подписи, алиасы, символы
+settings.py     — реестр настроек: режимы, источники API, оформление, языки
+math_parser.py  — вычисление арифметических выражений
+database.py     — SQLite-хранилище настроек (Preferences)
+keyboards.py    — inline-клавиатуры (строятся из settings/catalog)
+localization.py — тексты (ru/en)
+config.py       — переменные окружения и URL провайдеров
+tests/          — тесты (pytest)
 ```
 
 ## Тесты
 
 ```bash
 uv run pytest tests/ -v
+```
+
+Локальный эквивалент CI:
+
+```bash
+uv run --with pyflakes python -m pyflakes \
+  bot.py catalog.py config.py conversion.py database.py \
+  keyboards.py localization.py math_parser.py query.py rates.py settings.py
 ```
 
 ## Технологии

@@ -8,14 +8,18 @@ Telegram-бот конвертации валют. Frankfurter — основн�
 
 | Файл | Назначение | Строк |
 |---|---|---|
-| `bot.py` | Хендлеры, `ServicesMiddleware`, rate limit, `main()` | 640 |
-| `currency_service.py` | `CurrencyService` — провайдеры, кэш, конвертация, парсинг | 521 |
-| `database.py` | `UserDatabase` — SQLite, WAL, миграции | 212 |
-| `math_parser.py` | `MathParser` — вычисление выражений | 269 |
-| `keyboards.py` | Inline-клавиатуры | 204 |
-| `localization.py` | `TEXTS` dict, `t()` функция | 270 |
-| `config.py` | Константы, алиасы, API-ключи | 247 |
-| `tests/` | pytest-тесты (104 теста) | 563 |
+| `bot.py` | Хендлеры, `ContextMiddleware`, rate limit, `main()` | 514 |
+| `query.py` | `Query(amount, currency)`, `parse(text, mode)` — числа, слова, выражения | 159 |
+| `conversion.py` | Политика целей, кросс-курс через USD, отрисовка ответа | 127 |
+| `rates.py` | `RateSource`-адаптеры, `RateService` — порядок опроса, кэш, кулдаун | 301 |
+| `catalog.py` | Каталог валют: коды, категории, подписи, алиасы, символы | 246 |
+| `settings.py` | Реестр настроек: режимы, источники API, оформление, языки | 81 |
+| `database.py` | `UserDatabase` + `Preferences` — SQLite, WAL, миграции | 194 |
+| `math_parser.py` | `MathParser` — только вычисление выражений | 112 |
+| `keyboards.py` | Inline-клавиатуры (строятся из `settings`/`catalog`/`t`) | 153 |
+| `localization.py` | `TEXTS` dict, `t()` функция | 338 |
+| `config.py` | Только переменные окружения и URL провайдеров | 33 |
+| `tests/` | pytest-тесты (153 теста) | 722 |
 
 ## Запуск
 
@@ -61,18 +65,19 @@ CREATE TABLE users (
 
 ## API источники курсов
 
-Приоритет в auto-режиме (настраивается в config.py → `API_PRIORITY`):
-1. **Frankfurter** — фиат, 84 центральных банка (без ключа)
-2. **НБРБ** — официальные курсы BYN (без ключа)
-3. **CurrencyFreaks** — фиат и крипта (нужен ключ)
-4. **ExchangeRate-API** — резервный фиат (нужен ключ)
-5. **CoinGecko** — крипта к USD (без ключа, только неявный фоллбек)
+Единственный реестр — `settings.API_SOURCES` (значение настройки → провайдер, приоритет, ключ подписи, `selectable`):
 
-Выбор в `/settings` → "Источник курсов" — цифры 1-4 или "auto"; выбранный провайдер идёт первым, остальные остаются фоллбеком.
+| Значение | Провайдер | Категории | Ключ |
+|---|---|---|---|
+| `1` | `frankfurter` | fiat | нет |
+| `2` | `nbrb` | fiat | нет |
+| `3` | `currencyfreaks` | fiat, crypto | `CURRENCY_FREAKS_API_KEY` |
+| `4` | `exchangerate` | fiat | `EXCHANGE_RATE_API_KEY` |
+| `5` | `coingecko` | crypto | нет, `selectable=False` (только неявный фоллбек) |
 
-Провайдер подбирается под `required` валюты: `_PROVIDERS` описывает категории (fiat/crypto), фиатный источник не блокирует крипту.
+Выбор в `/settings` → «Источник курсов» — `auto` или 1–4; выбранный провайдер идёт первым, остальные остаются фоллбеком (`RateService._chain`).
 
-Кэш: по провайдеру и базе, TTL `CACHE_LIFETIME` (600 с). После сбоя провайдер пропускается 60 с. `get_rates(base, api_source, required)` возвращает `(rates, sources)`, где `sources` — `{code: provider}`.
+Адаптеры живут в `rates.py` (`RateSource.fetch(client, base) -> dict | None`) и не знают друг о друге. `RateService.quotes(base, required, preference)` пропускает источник, если у него нет нужной категории валют (`catalog.category`), поэтому фиатный источник не блокирует крипту. Кэш — по `(провайдер, база)`, TTL `CACHE_LIFETIME` (600 с); после сбоя источник пропускается `FAILURE_COOLDOWN` (60 с).
 
 ## CI
 
@@ -80,15 +85,17 @@ CREATE TABLE users (
 Локальный эквивалент:
 ```bash
 uv sync --frozen
-uv run --with pyflakes python -m pyflakes bot.py config.py currency_service.py database.py keyboards.py localization.py math_parser.py
+uv run --with pyflakes python -m pyflakes bot.py catalog.py config.py conversion.py database.py keyboards.py localization.py math_parser.py query.py rates.py settings.py
 uv run pytest -q
 ```
 
 ## Валидация
 
-- `processing_mode`: `simplified` | `standard` | `advanced`
-- `api_source`: `auto` | `1` | `2` | `3` | `4`
-- `language`: `ru` | `en`
+Источник значений — `settings.py`; дублировать списки в других модулях нельзя.
+
+- `processing_mode`: `settings.PROCESSING_MODES` (`simplified` | `standard` | `advanced`)
+- `api_source`: `settings.API_VALUES` (`auto` | `1` | `2` | `3` | `4`)
+- `language`: `settings.LANGUAGES` (`ru` | `en`)
 
 ## Тестирование
 
@@ -98,9 +105,12 @@ uv run pytest tests/ -x          # остановиться на первом п
 ```
 
 Тесты покрывают:
-- `MathParser` — выражения, парсинг, форматирование
-- `CurrencyService` — resolve_currency, extract_number_and_currency, normalize, W2N
-- `UserDatabase` — CRUD, валидация, граничные случаи
+- `catalog` — разбор алиасов/символов/кодов и согласованность таблиц
+- `query` — числа, «к/кк», выражения, режимы `simplified`/`standard`/`advanced`
+- `rates` — порядок источников, фоллбек, категории, кэш, кулдаун, HTTP-адаптеры (через `StubClient`, без сети)
+- `conversion` — кросс-курс через USD, политика целей, форматирование строк
+- `database` — `Preferences`, валидация, выбор валют
+- `math_parser` — вычисление выражений и отделение валюты
 
 ## Code Style
 
@@ -111,15 +121,23 @@ uv run pytest tests/ -x          # остановиться на первом п
 
 ## Важные детали
 
-- `BOT_TOKEN` читается при импорте, но проверяется в `main()` — конфиг импортируется без токена (нужно для тестов)
+- `BOT_TOKEN` читается при импорте, но проверяется в `main()` — модули импортируются без токена (нужно для тестов)
 - `database.py` — синхронный SQLite. Для масштабирования перейти на aiosqlite
+- `database.preferences(user_id)` — один снимок всех настроек (`Preferences`, frozen dataclass); отдельных геттеров больше нет
 - `math_parser.py` — использует `eval()` с `{"__builtins__": {}}` (безопасно благодаря `_is_safe_expression`)
+- `catalog.py` — единственный источник фактов о валютах: код, категория, подпись, флаг, символ, алиасы
+- `settings.py` — единственный источник допустимых значений настроек
+- `keyboards.py` — состав кнопок берётся из `settings`/`catalog`, подписи из `t()`; литералов в клавиатурах нет
+- `conversion.convert` считает кросс-курс через USD: `amount / rate[from] * rate[to]`
 - Режимы: `simplified` | `standard` | `advanced` (не `simple`/`extended`)
 
 ## При внесении изменений
 
-1. Синтаксис: `python3 -c "import ast; ast.parse(open('файл.py').read())"`
-2. Импорты: `uv run python -c "import модуль"`
-3. Тесты: `uv run pytest tests/ -v`
-4. Не добавлять `print()` — использовать `logger`
-5. Не хранить секреты в коде — только `.env`
+1. Новая валюта или алиас — только `catalog.py`
+2. Новый вариант настройки / источник курсов — `settings.py` (+ адаптер в `rates.py`), база и клавиатуры подхватят сами
+3. Новая подпись на кнопке — ключ в `localization.py` для `ru` и `en` (паритет обязателен)
+4. Синтаксис: `python3 -c "import ast; ast.parse(open('файл.py').read())"`
+5. Импорты: `uv run python -c "import модуль"`
+6. Тесты и линт: `uv run pytest tests/ -v` и pyflakes по списку из CI
+7. Не добавлять `print()` — использовать `logger`
+8. Не хранить секреты в коде — только `.env`

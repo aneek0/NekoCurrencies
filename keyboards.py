@@ -1,205 +1,154 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import FIAT_CURRENCIES, CRYPTO_CURRENCIES
-from typing import List
+"""Inline-клавиатуры бота.
+
+Состав кнопок берётся из реестров settings/catalog, подписи — из localization.t.
+"""
+
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+import catalog
+import settings
+from localization import t
+
+MARK_ON = '✅'
+MARK_OFF = '❌'
+_LETTERS_PER_ROW = 6
+_CURRENCY_COLUMNS = 2
+
+
+def _markup(rows: list[list[InlineKeyboardButton]]) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _button(text: str, callback_data: str) -> InlineKeyboardButton:
+    return InlineKeyboardButton(text=text, callback_data=callback_data)
+
+
+def _marked(text: str, selected: bool) -> str:
+    return f"{MARK_ON if selected else MARK_OFF} {text}"
+
+
+def _back_row(callback_data: str, lang: str, label_key: str = 'btn_back') -> list[InlineKeyboardButton]:
+    return [_button(t(label_key, lang), callback_data)]
+
+
+def _chunk(items: list, size: int) -> list[list]:
+    return [items[index:index + size] for index in range(0, len(items), size)]
+
 
 def get_main_menu_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
-	"""Главное меню бота"""
-	fiat = "💵 Фиатные валюты" if lang=='ru' else "💵 Fiat currencies"
-	crypto = "💎 Криптовалюты" if lang=='ru' else "💎 Crypto"
-	settings = "⚙️ Настройки" if lang=='ru' else "⚙️ Settings"
-	keyboard = InlineKeyboardMarkup(inline_keyboard=[
-		[
-			InlineKeyboardButton(text=fiat, callback_data="fiat_currencies"),
-			InlineKeyboardButton(text=crypto, callback_data="crypto_currencies")
-		],
-		[InlineKeyboardButton(text=settings, callback_data="settings")]
-	])
-	return keyboard
+    """Главное меню бота."""
+    return _markup([
+        [_button(t('btn_fiat', lang), 'fiat_currencies'),
+         _button(t('btn_crypto', lang), 'crypto_currencies')],
+        [_button(t('btn_settings', lang), 'settings')],
+    ])
+
 
 def get_help_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
-	"""Клавиатура для команды help"""
-	back_text = "⬅️ Назад в главное меню" if lang == 'ru' else "⬅️ Back to main"
-	keyboard = InlineKeyboardMarkup(inline_keyboard=[
-		[InlineKeyboardButton(text=back_text, callback_data="back_to_main")]
-	])
-	return keyboard
+    return _markup([_back_row('back_to_main', lang, 'btn_back_to_main')])
+
+
+def get_back_keyboard(callback_data: str, lang: str = 'ru') -> InlineKeyboardMarkup:
+    return _markup([_back_row(callback_data, lang)])
 
 
 def get_letter_keyboard(currency_type: str, lang: str = 'ru') -> InlineKeyboardMarkup:
-	"""Клавиатура с буквами для выбора валюты"""
-	currencies = FIAT_CURRENCIES if currency_type == "fiat" else CRYPTO_CURRENCIES
-	available_letters = set()
-	for code in currencies.keys():
-		if code and len(code) >= 1:
-			available_letters.add(code[0].upper())
-	buttons = []
-	current_row = []
-	for letter in sorted(available_letters):
-		current_row.append(InlineKeyboardButton(
-			text=letter,
-			callback_data=f"letter_{currency_type}_{letter}"
-		))
-		if len(current_row) == 6:
-			buttons.append(current_row)
-			current_row = []
-	if current_row:
-		buttons.append(current_row)
-	back_type_text = "⬅️ Назад к типу валют" if lang == 'ru' else "⬅️ Back to type"
-	buttons.append([InlineKeyboardButton(text=back_type_text, callback_data="back_to_currency_selection")])
-	return InlineKeyboardMarkup(inline_keyboard=buttons)
+    """Буквы, с которых начинаются коды валют выбранного типа."""
+    letters = sorted({code[0] for code in catalog.codes(currency_type)})
+    rows = [
+        [_button(letter, f"letter_{currency_type}_{letter}") for letter in row]
+        for row in _chunk(letters, _LETTERS_PER_ROW)
+    ]
+    rows.append(_back_row('back_to_currency_selection', lang, 'btn_back_to_type'))
+    return _markup(rows)
 
-def get_currencies_by_letter_keyboard(currency_type: str, letter: str, selected_codes: List[str] = None, lang: str = 'ru') -> InlineKeyboardMarkup:
-	"""Клавиатура с валютами, начинающимися на определенную букву"""
-	currencies = FIAT_CURRENCIES if currency_type == "fiat" else CRYPTO_CURRENCIES
-	selected_codes = selected_codes or []
-	filtered_currencies = []
-	for code, name in currencies.items():
-		if code.startswith(letter.upper()):
-			filtered_currencies.append((code, name))
-	buttons = []
-	current_row = []
-	for code, name in filtered_currencies:
-		check = "✅ " if code in selected_codes else "❌ "
-		current_row.append(InlineKeyboardButton(
-			text=f"{check}{name}",
-			callback_data=f"select_currency_{currency_type}_{letter}_{code}"
-		))
-		if len(current_row) == 2:
-			buttons.append(current_row)
-			current_row = []
-	if current_row:
-		buttons.append(current_row)
-	back_letters_text = "⬅️ Назад к буквам" if lang == 'ru' else "⬅️ Back to letters"
-	buttons.append([InlineKeyboardButton(text=back_letters_text, callback_data=f"back_to_letters_{currency_type}")])
-	back_type_text = "⬅️ Назад к типу валют" if lang == 'ru' else "⬅️ Back to type"
-	buttons.append([InlineKeyboardButton(text=back_type_text, callback_data="back_to_currency_selection")])
-	return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_currencies_by_letter_keyboard(currency_type: str, letter: str,
+                                      selected_codes: list[str] | None = None,
+                                      lang: str = 'ru') -> InlineKeyboardMarkup:
+    """Валюты на выбранную букву с отметкой выбранных."""
+    selected = set(selected_codes or ())
+    codes = [code for code in catalog.codes(currency_type) if code.startswith(letter.upper())]
+    buttons = [
+        _button(_marked(catalog.label(code), code in selected),
+                f"select_currency_{currency_type}_{letter}_{code}")
+        for code in codes
+    ]
+    rows = _chunk(buttons, _CURRENCY_COLUMNS)
+    rows.append(_back_row(f"back_to_letters_{currency_type}", lang))
+    rows.append(_back_row('back_to_currency_selection', lang, 'btn_back_to_type'))
+    return _markup(rows)
+
 
 def get_settings_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
-	"""Клавиатура настроек"""
-	texts = {
-		'processing': "🔍 Обработка сообщений" if lang=='ru' else "🔍 Message processing",
-		'api': "🌐 Источник курсов (API)" if lang=='ru' else "🌐 Rates source (API)",
-		'currencies': "💵 Валюты для конвертации" if lang=='ru' else "💵 Target currencies",
-		'debug': "🐞 Режим отладки" if lang=='ru' else "🐞 Debug mode",
-		'language': "🌎 Язык интерфейса" if lang=='ru' else "🌎 Interface language",
-		'appearance': "🎨 Внешний вид" if lang=='ru' else "🎨 Appearance",
-	}
-	keyboard = InlineKeyboardMarkup(inline_keyboard=[
-		[InlineKeyboardButton(text=texts['processing'], callback_data="processing_mode")],
-		[InlineKeyboardButton(text=texts['api'], callback_data="api_source")],
-		[InlineKeyboardButton(text=texts['currencies'], callback_data="currency_selection")],
-		[InlineKeyboardButton(text=texts['debug'], callback_data="debug_mode")],
-		[InlineKeyboardButton(text=texts['language'], callback_data="language")],
-		[InlineKeyboardButton(text=texts['appearance'], callback_data="appearance")]
-	])
-	return keyboard
-
-def get_api_source_keyboard(current_source: str = "auto", lang: str = 'ru') -> InlineKeyboardMarkup:
-    """Клавиатура выбора источника курсов с цифрами приоритета."""
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[])
-    options = [
-        ("auto", "🔄 Авто" if lang=='ru' else "🔄 Auto"),
-        ("1", "1️⃣ Frankfurter (приоритет 1)" if lang=='ru' else "1️⃣ Frankfurter (priority 1)"),
-        ("2", "2️⃣ НБРБ (приоритет 2)" if lang=='ru' else "2️⃣ NBRB (priority 2)"),
-        ("3", "3️⃣ CurrencyFreaks (приоритет 3)" if lang=='ru' else "3️⃣ CurrencyFreaks (priority 3)"),
-        ("4", "4️⃣ ExchangeRate-API (приоритет 4)" if lang=='ru' else "4️⃣ ExchangeRate-API (priority 4)"),
+    rows = [
+        [t('btn_settings_mode', lang), 'processing_mode'],
+        [t('btn_settings_api', lang), 'api_source'],
+        [t('btn_settings_currencies', lang), 'currency_selection'],
+        [t('btn_settings_debug', lang), 'debug_mode'],
+        [t('btn_settings_language', lang), 'language'],
+        [t('btn_settings_appearance', lang), 'appearance'],
     ]
-    for key, name in options:
-        icon = "✅" if key == current_source else "❌"
-        keyboard.inline_keyboard.append([
-            InlineKeyboardButton(
-                text=f"{icon} {name}",
-                callback_data=f"set_api_{key}"
-            )
-        ])
-    back_text = "⬅️ Назад к настройкам" if lang=='ru' else "⬅️ Back to settings"
-    keyboard.inline_keyboard.append([
-        InlineKeyboardButton(text=back_text, callback_data="back_to_settings")
-    ])
-    return keyboard
+    return _markup([[_button(text, callback_data)] for text, callback_data in rows])
 
-def get_processing_mode_keyboard(current_mode: str = "standard", lang: str = 'ru') -> InlineKeyboardMarkup:
-	keyboard = InlineKeyboardMarkup(inline_keyboard=[])
-	modes = {
-		"simplified": "Упрощенный" if lang=='ru' else "Simplified",
-		"standard": "Стандартный" if lang=='ru' else "Standard",
-		"advanced": "Расширенный" if lang=='ru' else "Advanced"
-	}
-	for mode_key, mode_name in modes.items():
-		icon = "✅" if mode_key == current_mode else "❌"
-		keyboard.inline_keyboard.append([
-			InlineKeyboardButton(
-				text=f"{icon} {mode_name}",
-				callback_data=f"set_mode_{mode_key}"
-			)
-		])
-	back_text = "⬅️ Назад" if lang=='ru' else "⬅️ Back"
-	keyboard.inline_keyboard.append([
-		InlineKeyboardButton(text=back_text, callback_data="back_to_settings")
-	])
-	return keyboard
+
+def get_processing_mode_keyboard(current_mode: str = settings.DEFAULT_MODE,
+                                 lang: str = 'ru') -> InlineKeyboardMarkup:
+    rows = [
+        [_button(_marked(t(settings.MODE_LABELS[mode], lang), mode == current_mode),
+                 f"set_mode_{mode}")]
+        for mode in settings.PROCESSING_MODES
+    ]
+    rows.append(_back_row('back_to_settings', lang))
+    return _markup(rows)
+
+
+def get_api_source_keyboard(current_source: str = settings.AUTO,
+                            lang: str = 'ru') -> InlineKeyboardMarkup:
+    """Источник курсов: авто плюс те, что можно выбрать вручную."""
+    options = [(settings.AUTO, 'api_source_auto')]
+    options += [(source.value, source.label_key) for source in settings.SELECTABLE_SOURCES]
+    rows = [
+        [_button(_marked(t(label_key, lang), value == current_source), f"set_api_{value}")]
+        for value, label_key in options
+    ]
+    rows.append(_back_row('back_to_settings', lang, 'btn_back_to_settings'))
+    return _markup(rows)
+
 
 def get_currency_selection_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
-	fiat_text = "💵 Фиатные валюты" if lang=='ru' else "💵 Fiat currencies"
-	crypto_text = "💎 Криптовалюты" if lang=='ru' else "💎 Crypto"
-	back_text = "⬅️ Назад к настройкам" if lang=='ru' else "⬅️ Back to settings"
-	keyboard = InlineKeyboardMarkup(inline_keyboard=[
-		[
-			InlineKeyboardButton(text=fiat_text, callback_data="fiat_currencies"),
-			InlineKeyboardButton(text=crypto_text, callback_data="crypto_currencies")
-		],
-		[InlineKeyboardButton(text=back_text, callback_data="back_to_settings")]
-	])
-	return keyboard
+    return _markup([
+        [_button(t('btn_fiat', lang), 'fiat_currencies'),
+         _button(t('btn_crypto', lang), 'crypto_currencies')],
+        _back_row('back_to_settings', lang, 'btn_back_to_settings'),
+    ])
+
 
 def get_debug_mode_keyboard(enabled: bool, lang: str = 'ru') -> InlineKeyboardMarkup:
-	on_icon = "✅" if enabled else "❌"
-	off_icon = "❌" if enabled else "✅"
-	back_text = "⬅️ Назад к настройкам" if lang=='ru' else "⬅️ Back to settings"
-	on_text = "Включен" if lang=='ru' else "On"
-	off_text = "Выключен" if lang=='ru' else "Off"
-	keyboard = InlineKeyboardMarkup(inline_keyboard=[
-		[InlineKeyboardButton(text=f"{on_icon} {on_text}", callback_data="set_debug_on")],
-		[InlineKeyboardButton(text=f"{off_icon} {off_text}", callback_data="set_debug_off")],
-		[InlineKeyboardButton(text=back_text, callback_data="back_to_settings")]
-	])
-	return keyboard
+    rows = [
+        [_button(_marked(t('debug_on', lang), enabled), 'set_debug_on')],
+        [_button(_marked(t('debug_off', lang), not enabled), 'set_debug_off')],
+        _back_row('back_to_settings', lang, 'btn_back_to_settings'),
+    ]
+    return _markup(rows)
 
-def get_language_keyboard(current_lang: str = "ru", lang: str = 'ru') -> InlineKeyboardMarkup:
-	back_text = "⬅️ Назад к настройкам" if lang=='ru' else "⬅️ Back to settings"
-	keyboard = InlineKeyboardMarkup(inline_keyboard=[])
-	options = [("ru", "Русский"), ("en", "English")]
-	for code, title in options:
-		icon = "✅" if code == current_lang else "❌"
-		keyboard.inline_keyboard.append([
-			InlineKeyboardButton(text=f"{icon} {title}", callback_data=f"set_lang_{code}")
-		])
-	keyboard.inline_keyboard.append([
-		InlineKeyboardButton(text=back_text, callback_data="back_to_settings")
-	])
-	return keyboard
 
-def get_appearance_keyboard(show_flags: bool, show_codes: bool, show_symbols: bool, compact: bool, lang: str = 'ru') -> InlineKeyboardMarkup:
-	flag_icon = "✅" if show_flags else "❌"
-	code_icon = "✅" if show_codes else "❌"
-	sym_icon = "✅" if show_symbols else "❌"
-	back_text = "⬅️ Назад" if lang=='ru' else "⬅️ Back"
-	labels = {
-		'flags': "🏁 Флаги" if lang=='ru' else "🏁 Flags",
-		'codes': "Коды" if lang=='ru' else "Codes",
-		'symbols': "€$ Символы" if lang=='ru' else "€$ Symbols",
-	}
-	keyboard = InlineKeyboardMarkup(inline_keyboard=[
-		[InlineKeyboardButton(text=f"{labels['flags']} {flag_icon}", callback_data="toggle_flags")],
-		[InlineKeyboardButton(text=f"{labels['codes']} {code_icon}", callback_data="toggle_codes")],
-		[InlineKeyboardButton(text=f"{labels['symbols']} {sym_icon}", callback_data="toggle_symbols")],
-		[InlineKeyboardButton(text=back_text, callback_data="back_to_settings")]
-	])
-	return keyboard
+def get_language_keyboard(current_lang: str = settings.DEFAULT_LANGUAGE,
+                          lang: str = 'ru') -> InlineKeyboardMarkup:
+    rows = [
+        [_button(_marked(t(f'lang_name_{code}', lang), code == current_lang), f"set_lang_{code}")]
+        for code in settings.LANGUAGES
+    ]
+    rows.append(_back_row('back_to_settings', lang, 'btn_back_to_settings'))
+    return _markup(rows)
 
-def get_back_keyboard(callback_data: str, lang: str = 'ru') -> InlineKeyboardMarkup:
-	back_text = "⬅️ Назад" if lang=='ru' else "⬅️ Back"
-	return InlineKeyboardMarkup(inline_keyboard=[
-		[InlineKeyboardButton(text=back_text, callback_data=callback_data)]
-	]) 
+
+def get_appearance_keyboard(appearance: dict, lang: str = 'ru') -> InlineKeyboardMarkup:
+    """Переключатели оформления: подпись + отметка текущего значения."""
+    rows = []
+    for callback_data, key in settings.APPEARANCE_TOGGLES.items():
+        enabled = appearance.get(key, settings.APPEARANCE_DEFAULTS[key])
+        text = f"{t(settings.APPEARANCE_LABELS[key], lang)} {MARK_ON if enabled else MARK_OFF}"
+        rows.append([_button(text, callback_data)])
+    rows.append(_back_row('back_to_settings', lang))
+    return _markup(rows)

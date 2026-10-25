@@ -22,8 +22,8 @@ jobs:
       - name: Lint (pyflakes)
         run: >-
           uv run --with pyflakes python -m pyflakes
-          bot.py config.py currency_service.py database.py
-          keyboards.py localization.py math_parser.py
+          bot.py catalog.py config.py conversion.py database.py
+          keyboards.py localization.py math_parser.py query.py rates.py settings.py
 
       - name: Tests
         run: uv run pytest -q

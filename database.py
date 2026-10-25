@@ -1,15 +1,33 @@
-"""SQLite-база данных пользователей."""
+"""SQLite-база данных пользователей и снимок их настроек."""
 
 import json
 import os
 import sqlite3
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List
 
+import settings
 from config import DATABASE_FILE
 
-DEFAULT_APPEARANCE = {'show_flags': True, 'show_codes': True, 'show_symbols': True, 'compact': False}
 SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True)
+class Preferences:
+    """Все настройки пользователя на момент чтения: один запрос вместо семи."""
+
+    language: str = settings.DEFAULT_LANGUAGE
+    processing_mode: str = settings.DEFAULT_MODE
+    api_source: str = settings.DEFAULT_API_SOURCE
+    debug_mode: bool = False
+    appearance: dict = field(default_factory=lambda: dict(settings.APPEARANCE_DEFAULTS))
+    fiat: list[str] = field(default_factory=list)
+    crypto: list[str] = field(default_factory=list)
+
+    @property
+    def selected(self) -> list[str]:
+        """Выбранные валюты для конвертации: фиат, затем крипта."""
+        return [*self.fiat, *self.crypto]
 
 
 class UserDatabase:
@@ -17,10 +35,10 @@ class UserDatabase:
         'processing_mode', 'api_source', 'debug_mode', 'language',
         'appearance', 'selected_fiat', 'selected_crypto',
     }
-    _APPEARANCE_KEYS = {'show_flags', 'show_codes', 'show_symbols', 'compact'}
-    _VALID_MODES = {'simplified', 'standard', 'advanced'}
-    _VALID_API_SOURCES = {'auto', '1', '2', '3', '4'}
-    _VALID_LANGUAGES = {'ru', 'en'}
+    _APPEARANCE_KEYS = frozenset(settings.APPEARANCE_DEFAULTS)
+    _VALID_MODES = settings.PROCESSING_MODES
+    _VALID_API_SOURCES = settings.API_VALUES
+    _VALID_LANGUAGES = settings.LANGUAGES
 
     def __init__(self, db_path: str = DATABASE_FILE):
         dir_name = os.path.dirname(db_path)
@@ -65,7 +83,7 @@ class UserDatabase:
         row = cursor.fetchone()
         if row is None:
             now = datetime.now(timezone.utc).isoformat()
-            appearance = json.dumps(DEFAULT_APPEARANCE, ensure_ascii=False)
+            appearance = json.dumps(settings.APPEARANCE_DEFAULTS, ensure_ascii=False)
             self._conn.execute(
                 "INSERT INTO users (user_id, created_at, last_activity, appearance) VALUES (?, ?, ?, ?)",
                 (user_id, now, now, appearance),
@@ -88,105 +106,51 @@ class UserDatabase:
 
     # ── Публичный API ────────────────────────────────────────
 
-    def get_user(self, user_id: int) -> Dict:
+    def preferences(self, user_id: int) -> Preferences:
+        """Все настройки пользователя одним чтением строки."""
         row = self._get_user_row(user_id)
-        return {
-            'user_id': row['user_id'],
-            'processing_mode': row['processing_mode'],
-            'api_source': row['api_source'],
-            'debug_mode': bool(row['debug_mode']),
-            'language': row['language'],
-            'appearance': json.loads(row['appearance']),
-            'selected_currencies': {
-                'fiat': json.loads(row['selected_fiat']),
-                'crypto': json.loads(row['selected_crypto']),
-            },
-            'created_at': row['created_at'],
-            'last_activity': row['last_activity'],
-        }
-
-    def update_user(self, user_id: int, **kwargs):
-        mapped = {}
-        for key, value in kwargs.items():
-            if key == 'appearance':
-                if not isinstance(value, dict):
-                    raise ValueError("appearance must be a dict")
-                mapped[key] = json.dumps(value, ensure_ascii=False)
-            elif key == 'selected_currencies':
-                mapped['selected_fiat'] = json.dumps(value.get('fiat', []), ensure_ascii=False)
-                mapped['selected_crypto'] = json.dumps(value.get('crypto', []), ensure_ascii=False)
-            else:
-                mapped[key] = value
-        self._update(user_id, **mapped)
+        return Preferences(
+            language=row['language'],
+            processing_mode=row['processing_mode'],
+            api_source=row['api_source'],
+            debug_mode=bool(row['debug_mode']),
+            appearance=self._appearance(row),
+            fiat=json.loads(row['selected_fiat']),
+            crypto=json.loads(row['selected_crypto']),
+        )
 
     def set_processing_mode(self, user_id: int, mode: str):
         if mode not in self._VALID_MODES:
             raise ValueError(f"Invalid mode: {mode}. Must be one of {self._VALID_MODES}")
         self._update(user_id, processing_mode=mode)
 
-    def get_processing_mode(self, user_id: int) -> str:
-        row = self._get_user_row(user_id)
-        return row['processing_mode']
-
     def set_api_source(self, user_id: int, source: str):
         if source not in self._VALID_API_SOURCES:
             raise ValueError(f"Invalid source: {source}. Must be one of {self._VALID_API_SOURCES}")
         self._update(user_id, api_source=source)
 
-    def get_api_source(self, user_id: int) -> str:
-        row = self._get_user_row(user_id)
-        return row['api_source']
-
     def set_debug_mode(self, user_id: int, enabled: bool):
         self._update(user_id, debug_mode=int(enabled))
-
-    def get_debug_mode(self, user_id: int) -> bool:
-        row = self._get_user_row(user_id)
-        return bool(row['debug_mode'])
 
     def set_language(self, user_id: int, language: str):
         if language not in self._VALID_LANGUAGES:
             raise ValueError(f"Invalid language: {language}. Must be one of {self._VALID_LANGUAGES}")
         self._update(user_id, language=language)
 
-    def get_language(self, user_id: int) -> str:
-        row = self._get_user_row(user_id)
-        return row['language']
-
-    def get_appearance(self, user_id: int) -> Dict:
-        row = self._get_user_row(user_id)
-        return json.loads(row['appearance']) if row['appearance'] else dict(DEFAULT_APPEARANCE)
-
     def set_appearance(self, user_id: int, **kwargs):
         row = self._get_user_row(user_id)
-        appearance = json.loads(row['appearance']) if row['appearance'] else {}
+        appearance = dict(settings.APPEARANCE_DEFAULTS)
+        appearance.update(json.loads(row['appearance']) if row['appearance'] else {})
         for key, value in kwargs.items():
             if key in self._APPEARANCE_KEYS:
                 appearance[key] = value
         self._update(user_id, appearance=json.dumps(appearance, ensure_ascii=False))
 
     def add_selected_currency(self, user_id: int, currency_type: str, currency_code: str):
-        row = self._get_user_row(user_id)
-        key = 'selected_fiat' if currency_type == 'fiat' else 'selected_crypto'
-        currencies = json.loads(row[key])
-        if currency_code not in currencies:
-            currencies.append(currency_code)
-            self._update(user_id, **{key: json.dumps(currencies, ensure_ascii=False)})
+        self._change_selection(user_id, currency_type, currency_code, add=True)
 
     def remove_selected_currency(self, user_id: int, currency_type: str, currency_code: str):
-        row = self._get_user_row(user_id)
-        key = 'selected_fiat' if currency_type == 'fiat' else 'selected_crypto'
-        currencies = json.loads(row[key])
-        if currency_code in currencies:
-            currencies.remove(currency_code)
-            self._update(user_id, **{key: json.dumps(currencies, ensure_ascii=False)})
-
-    def get_selected_currencies(self, user_id: int) -> Dict[str, List[str]]:
-        row = self._get_user_row(user_id)
-        return {
-            'fiat': json.loads(row['selected_fiat']),
-            'crypto': json.loads(row['selected_crypto']),
-        }
+        self._change_selection(user_id, currency_type, currency_code, add=False)
 
     def clear_selected_currencies(self, user_id: int, currency_type: str | None = None):
         if currency_type == 'fiat':
@@ -207,6 +171,24 @@ class UserDatabase:
         if last is None or (now - last).total_seconds() >= interval:
             self._update(user_id)
 
-    def delete_user(self, user_id: int):
-        self._conn.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
-        self._conn.commit()
+
+    # ── Внутренние хелперы ───────────────────────────────────
+
+    def _change_selection(self, user_id: int, currency_type: str,
+                          currency_code: str, *, add: bool) -> None:
+        column = 'selected_fiat' if currency_type == 'fiat' else 'selected_crypto'
+        row = self._get_user_row(user_id)
+        currencies = json.loads(row[column])
+        if add and currency_code not in currencies:
+            currencies.append(currency_code)
+        elif not add and currency_code in currencies:
+            currencies.remove(currency_code)
+        else:
+            return
+        self._update(user_id, **{column: json.dumps(currencies, ensure_ascii=False)})
+
+    @staticmethod
+    def _appearance(row: sqlite3.Row) -> dict:
+        appearance = dict(settings.APPEARANCE_DEFAULTS)
+        appearance.update(json.loads(row['appearance']) if row['appearance'] else {})
+        return appearance
