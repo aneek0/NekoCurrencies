@@ -1,4 +1,4 @@
-"""Тесты разбора сообщений: числа, валюты, режимы обработки."""
+"""Message parsing tests: numbers, currencies, processing modes."""
 
 import pytest
 

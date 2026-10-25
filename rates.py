@@ -1,7 +1,7 @@
-"""Источники курсов: адаптеры провайдеров и их оркестрация.
+"""Rate sources: provider adapters and their orchestration.
 
-Каждый источник знает только свой HTTP-ответ; порядок опроса, кэш и
-кулдаун после сбоя собраны в RateService.
+Each source knows only its own HTTP response; polling order, cache and
+post-failure cooldown live in RateService.
 """
 
 import logging
@@ -26,12 +26,12 @@ from config import (
 
 logger = logging.getLogger(__name__)
 
-FAILURE_COOLDOWN = 60.0  # секунд: источник пропускается после сбоя
+FAILURE_COOLDOWN = 60.0  # seconds: the source is skipped after a failure
 
 
 @dataclass(frozen=True)
 class Quotes:
-    """Курсы к базовой валюте и имя источника по каждой валюте."""
+    """Rates to the base currency and the source name per currency."""
 
     rates: dict[str, float] = field(default_factory=dict)
     sources: dict[str, str] = field(default_factory=dict)
@@ -41,7 +41,7 @@ class Quotes:
 
 
 def _to_rates(raw: dict | None) -> dict[str, float]:
-    """Нормализовать ответ API: строки → float, мусор отбросить."""
+    """Normalize an API response: strings → float, drop garbage."""
     if not raw:
         return {}
     rates = {}
@@ -54,18 +54,18 @@ def _to_rates(raw: dict | None) -> dict[str, float]:
 
 
 class RateSource:
-    """Источник курсов: имя, поддерживаемые категории валют, загрузка."""
+    """Rate source: name, supported currency categories, fetching."""
 
     name = ''
     categories = frozenset({'fiat'})
 
     async def fetch(self, client: httpx.AsyncClient, base: str) -> dict[str, float] | None:
-        """Курсы к base; None, если источник недоступен."""
+        """Rates to base; None if the source is unavailable."""
         raise NotImplementedError
 
 
 class FrankfurterSource(RateSource):
-    """Frankfurter: курсы центробанков, без ключа, только фиат."""
+    """Frankfurter: central bank rates, no key, fiat only."""
 
     name = 'frankfurter'
 
@@ -86,7 +86,7 @@ class FrankfurterSource(RateSource):
 
 
 class NbrbSource(RateSource):
-    """НБРБ: официальные курсы к BYN, без ключа, только фиат."""
+    """NBRB: official rates to BYN, no key, fiat only."""
 
     name = 'nbrb'
 
@@ -110,7 +110,7 @@ class NbrbSource(RateSource):
 
 
 class CurrencyFreaksSource(RateSource):
-    """CurrencyFreaks: фиат и крипта, нужен ключ."""
+    """CurrencyFreaks: fiat and crypto, key required."""
 
     name = 'currencyfreaks'
     categories = frozenset({'fiat', 'crypto'})
@@ -132,7 +132,7 @@ class CurrencyFreaksSource(RateSource):
 
 
 class ExchangeRateSource(RateSource):
-    """ExchangeRate-API: резервный фиат, нужен ключ."""
+    """ExchangeRate-API: fallback fiat, key required."""
 
     name = 'exchangerate'
 
@@ -153,7 +153,7 @@ class ExchangeRateSource(RateSource):
 
 
 class CoinGeckoSource(RateSource):
-    """CoinGecko: цена монеты в USD, поэтому курс USD → монета = 1 / цена."""
+    """CoinGecko: coin price in USD, so the USD → coin rate = 1 / price."""
 
     name = 'coingecko'
     categories = frozenset({'crypto'})
@@ -194,7 +194,7 @@ class CoinGeckoSource(RateSource):
 
 
 def _convert_base(to_byn: dict[str, float], base: str) -> dict[str, float] | None:
-    """Пересчитать курсы 'к BYN' в 'к base'."""
+    """Convert 'to BYN' rates into 'to base' rates."""
     if base == 'BYN':
         return {code: 1.0 / rate for code, rate in to_byn.items()}
     if base not in to_byn:
@@ -213,7 +213,7 @@ SOURCES = (
 
 
 class RateService:
-    """Опрос источников: порядок по приоритету, кэш, кулдаун после сбоя."""
+    """Source polling: priority order, cache, cooldown after a failure."""
 
     def __init__(self, sources: Iterable[RateSource] = SOURCES, *,
                  cache_lifetime: float = CACHE_LIFETIME,
@@ -233,11 +233,11 @@ class RateService:
 
     async def quotes(self, base: str = 'USD', required: Iterable[str] = (),
                      preference: str = settings.AUTO) -> Quotes:
-        """Курсы к base и источники по валютам.
+        """Rates to base and the source per currency.
 
-        Источник без нужной категории валют пропускается, поэтому фиатный
-        провайдер не мешает получить крипту и наоборот. Выбранный
-        пользователем источник идёт первым, остальные — фоллбек.
+        A source without the needed currency category is skipped, so a fiat
+        provider does not block crypto and vice versa. The source picked by
+        the user goes first, the rest are fallback.
         """
         needed = set(required) - {base}
         rates: dict[str, float] = {}
@@ -268,7 +268,7 @@ class RateService:
         return Quotes(rates, sources)
 
     def _chain(self, preference: str) -> list[str]:
-        """Порядок источников: выбранный первым, остальные по приоритету."""
+        """Source order: the selected one first, the rest by priority."""
         order = [name for name in settings.PROVIDER_ORDER if name in self._sources]
         order += [name for name in self._sources if name not in order]
         primary = settings.provider_for(preference)
@@ -278,7 +278,7 @@ class RateService:
         return order
 
     async def _rates_of(self, source: RateSource, base: str) -> dict[str, float] | None:
-        """Курсы источника из кэша или сети; None — источник недоступен."""
+        """Source rates from cache or network; None means unavailable."""
         key = (source.name, base)
         cached = self._cache.get(key)
         if cached and (time.time() - cached[0]) < self._cache_lifetime:

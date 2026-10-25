@@ -1,4 +1,4 @@
-"""Тесты вычисления арифметических выражений."""
+"""Arithmetic expression evaluation tests."""
 
 import pytest
 

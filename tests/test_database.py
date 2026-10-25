@@ -1,4 +1,4 @@
-"""Тесты настроек пользователя в SQLite."""
+"""Tests for user settings in SQLite."""
 
 import pytest
 
@@ -67,7 +67,7 @@ class TestApiSource:
             db.set_api_source(1, 'invalid')
 
     def test_provider_names_rejected(self, db):
-        """Значения настройки — цифры, а не имена провайдеров."""
+        """Setting values are digits, not provider names."""
         for provider in ('nbrb', 'currencyfreaks', 'exchangerate'):
             with pytest.raises(ValueError):
                 db.set_api_source(1, provider)

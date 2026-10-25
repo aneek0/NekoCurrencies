@@ -1,4 +1,4 @@
-"""SQLite-база данных пользователей и снимок их настроек."""
+"""SQLite user database and snapshot of their settings."""
 
 import json
 import os
@@ -14,7 +14,7 @@ SCHEMA_VERSION = 1
 
 @dataclass(frozen=True)
 class Preferences:
-    """Все настройки пользователя на момент чтения: один запрос вместо семи."""
+    """All user settings at read time: one query instead of seven."""
 
     language: str = settings.DEFAULT_LANGUAGE
     processing_mode: str = settings.DEFAULT_MODE
@@ -26,7 +26,7 @@ class Preferences:
 
     @property
     def selected(self) -> list[str]:
-        """Выбранные валюты для конвертации: фиат, затем крипта."""
+        """Currencies selected for conversion: fiat, then crypto."""
         return [*self.fiat, *self.crypto]
 
 
@@ -76,7 +76,7 @@ class UserDatabase:
             self._conn.close()
             self._conn = None
 
-    # ── Внутренние хелперы ───────────────────────────────────
+    # ── Internal helpers ─────────────────────────────────────
 
     def _get_user_row(self, user_id: int) -> sqlite3.Row:
         cursor = self._conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
@@ -104,10 +104,10 @@ class UserDatabase:
         self._conn.execute(f"UPDATE users SET {sets} WHERE user_id = ?", values)
         self._conn.commit()
 
-    # ── Публичный API ────────────────────────────────────────
+    # ── Public API ───────────────────────────────────────────
 
     def preferences(self, user_id: int) -> Preferences:
-        """Все настройки пользователя одним чтением строки."""
+        """All user settings from a single row read."""
         row = self._get_user_row(user_id)
         return Preferences(
             language=row['language'],
@@ -161,7 +161,7 @@ class UserDatabase:
             self._update(user_id, selected_fiat='[]', selected_crypto='[]')
 
     def touch(self, user_id: int, interval: float = 60.0) -> None:
-        """Обновить last_activity, но не чаще раза в `interval` секунд."""
+        """Update last_activity, but no more often than once per `interval` seconds."""
         row = self._get_user_row(user_id)
         now = datetime.now(timezone.utc)
         try:
@@ -172,7 +172,7 @@ class UserDatabase:
             self._update(user_id)
 
 
-    # ── Внутренние хелперы ───────────────────────────────────
+    # ── Internal helpers ─────────────────────────────────────
 
     def _change_selection(self, user_id: int, currency_type: str,
                           currency_code: str, *, add: bool) -> None:

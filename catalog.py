@@ -1,7 +1,7 @@
-"""Каталог валют: код, категория, подпись, символ, алиасы, разбор из текста.
+"""Currency catalogue: code, category, label, symbol, aliases, parsing from text.
 
-Единственный источник фактов о валютах. Ключ FIAT/CRYPTO — код, значение —
-подпись "флаг КОД", которую видят пользователи в клавиатурах.
+The single source of truth about currencies. FIAT/CRYPTO key — code, value —
+the label "flag CODE" that users see in keyboards.
 """
 
 import re
@@ -165,9 +165,9 @@ INPUT_SYMBOLS = {
     '₸': 'KZT', '₩': 'KRW', '₹': 'INR', '₿': 'BTC', 'Ξ': 'ETH', '💎': 'TON',
 }
 
-# Латиница: интерфейс двуязычный, поэтому «100 dollars» должно работать так же,
-# как «100 долларов». Только одиночные слова — многословные имена разбирает
-# resolve_in_text по границам слов, но не resolve() из одного токена.
+# Latin: the interface is bilingual, so "100 dollars" must work just like
+# "100 долларов". Single words only — multi-word names are parsed by
+# resolve_in_text on word boundaries, but not by resolve() from a single token.
 EN_ALIASES = {
     'dollar': 'USD', 'dollars': 'USD', 'buck': 'USD', 'bucks': 'USD',
     'greenback': 'USD', 'greenbacks': 'USD',
@@ -196,7 +196,7 @@ FIAT_CODES = tuple(FIAT)
 CRYPTO_CODES = tuple(CRYPTO)
 ALL_CODES = FIAT_CODES + CRYPTO_CODES
 
-# Символы валют, которые бот понимает на входе: `[символы]` для регулярок.
+# Currency symbols the bot understands on input: `[symbols]` for regexes.
 INPUT_SYMBOL_CLASS = '[' + ''.join(re.escape(symbol) for symbol in INPUT_SYMBOLS) + ']'
 
 _ALIASES_BY_LENGTH = tuple(sorted(ALIASES.items(), key=lambda item: len(item[0]), reverse=True))
@@ -216,23 +216,23 @@ def category(code: str) -> str | None:
 
 
 def label(code: str) -> str:
-    """Подпись валюты для клавиатур: '🇺🇸 USD'."""
+    """Currency label for keyboards: '🇺🇸 USD'."""
     return FIAT.get(code) or CRYPTO.get(code) or code
 
 
 def flag(code: str) -> str:
-    """Флаг фиата; у крипты флага нет."""
+    """Fiat flag; crypto has no flag."""
     entry = FIAT.get(code)
     return entry.split()[0] if entry else ''
 
 
 def symbol(code: str) -> str:
-    """Символ валюты для суммы: '$', '₽', '' если нет."""
+    """Currency symbol for the amount: '$', '₽', '' if none."""
     return SYMBOLS.get(code, '')
 
 
 def codes(kind: str | None = None) -> tuple[str, ...]:
-    """Коды валют: все, только fiat или только crypto."""
+    """Currency codes: all, fiat only or crypto only."""
     if kind == 'fiat':
         return FIAT_CODES
     if kind == 'crypto':
@@ -241,7 +241,7 @@ def codes(kind: str | None = None) -> tuple[str, ...]:
 
 
 def resolve(text: str) -> str | None:
-    """Разобрать одно слово/символ в код валюты ('бакс' → 'USD', '€' → 'EUR')."""
+    """Parse a single word/symbol into a currency code ('бакс' → 'USD', '€' → 'EUR')."""
     text = text.lower().strip().strip('.')
     if text in ALIASES:
         return ALIASES[text]
@@ -250,7 +250,7 @@ def resolve(text: str) -> str | None:
     upper = text.upper()
     if upper in FIAT or upper in CRYPTO:
         return upper
-    # Обрезаем знаки, чтобы поймать окончания: 'долларов.' → 'долларов'
+    # Trim the punctuation to catch endings: 'долларов.' → 'долларов'
     base = re.sub(r'[^a-zа-яё]', '', text)
     if base in ALIASES:
         return ALIASES[base]
@@ -258,7 +258,7 @@ def resolve(text: str) -> str | None:
 
 
 def resolve_in_text(text: str) -> str | None:
-    """Найти валюту в произвольном тексте: алиас → символ → код."""
+    """Find a currency in arbitrary text: alias → symbol → code."""
     lowered = text.lower()
     for alias, code in _ALIASES_BY_LENGTH:
         if len(alias) == 1:

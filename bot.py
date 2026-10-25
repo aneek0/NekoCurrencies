@@ -1,4 +1,4 @@
-"""Telegram-бот конвертации валют: хендлеры, middleware, запуск."""
+"""Currency conversion Telegram bot: handlers, middleware, startup."""
 
 import asyncio
 import logging
@@ -50,7 +50,7 @@ from rates import RateService
 logger = logging.getLogger(__name__)
 
 
-# ── Сервисы (инициализируются в main) ──────────────────────
+# ── Services (initialized in main) ─────────────────────────
 
 class Services:
     def __init__(self):
@@ -66,7 +66,7 @@ class Services:
 
 
 class ContextMiddleware(BaseMiddleware):
-    """Прокидывает services и снимок настроек пользователя в data."""
+    """Passes services and a snapshot of user settings into data."""
 
     def __init__(self, services: Services):
         self.services = services
@@ -82,7 +82,7 @@ class ContextMiddleware(BaseMiddleware):
 # ── Rate limit middleware ──────────────────────────────────
 
 class RateLimitMiddleware(BaseMiddleware):
-    """Не более одного запроса в RATE_LIMIT_PERIOD секунд на пользователя."""
+    """At most one request per user per RATE_LIMIT_PERIOD seconds."""
 
     def __init__(self, period: float = RATE_LIMIT_PERIOD):
         self.period = period
@@ -109,7 +109,7 @@ class RateLimitMiddleware(BaseMiddleware):
 # ── Lifespan ───────────────────────────────────────────────
 
 async def on_startup(svc: Services):
-    """Публикует в Telegram то, что видно до первого сообщения: команды и профиль."""
+    """Publishes what is visible before the first message to Telegram: commands and profile."""
     logger.info("Запуск бота...")
     for lang in settings.LANGUAGES:
         await svc.bot.set_my_commands([
@@ -128,7 +128,7 @@ async def on_shutdown(svc: Services):
     await svc.close()
 
 
-# ── Хендлеры команд ────────────────────────────────────────
+# ── Command handlers ───────────────────────────────────────
 
 async def cmd_start(message: Message, prefs: Preferences):
     await message.answer(t('welcome', prefs.language), reply_markup=get_main_menu_keyboard(prefs.language))
@@ -148,7 +148,7 @@ async def cmd_version(message: Message, prefs: Preferences):
     await message.answer(t('version', prefs.language, version=BOT_VERSION), parse_mode="Markdown")
 
 
-# ── Хендлеры callback ──────────────────────────────────────
+# ── Callback handlers ──────────────────────────────────────
 
 async def process_settings_callback(callback: CallbackQuery, prefs: Preferences):
     await callback.message.edit_text(t('settings', prefs.language),
@@ -357,7 +357,7 @@ async def process_back_to_currency_selection(callback: CallbackQuery, prefs: Pre
                                      reply_markup=get_currency_selection_keyboard(prefs.language))
 
 
-# ── Обработчик сообщений ───────────────────────────────────
+# ── Message handler ────────────────────────────────────────
 
 async def process_message(message: Message, services: Services, prefs: Preferences):
     try:
@@ -375,7 +375,7 @@ async def process_message(message: Message, services: Services, prefs: Preferenc
         await message.answer(t('error_processing', prefs.language))
 
 
-# ── Инлайн хендлер ─────────────────────────────────────────
+# ── Inline handler ─────────────────────────────────────────
 
 async def inline_query_handler(inline_query: InlineQuery, services: Services,
                                prefs: Preferences):
@@ -393,7 +393,7 @@ async def inline_query_handler(inline_query: InlineQuery, services: Services,
         return
 
     try:
-        # В inline нет настроенного режима: разбираем максимально широко.
+        # Inline has no configured mode: parse as broadly as possible.
         request = query.parse(text, 'advanced')
         if request is None:
             results = [InlineQueryResultArticle(
@@ -440,7 +440,7 @@ async def inline_query_handler(inline_query: InlineQuery, services: Services,
         await inline_query.answer(results=results, cache_time=300)
 
 
-# ── Регистрация хендлеров ──────────────────────────────────
+# ── Handler registration ───────────────────────────────────
 
 def register_handlers(dp: Dispatcher, services: Services):
     dp.message.middleware(ContextMiddleware(services))

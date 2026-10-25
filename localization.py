@@ -1,4 +1,4 @@
-"""Локализация бота."""
+"""Bot localization."""
 
 TEXTS: dict[str, dict[str, str]] = {
     'ru': {
@@ -129,7 +129,7 @@ TEXTS: dict[str, dict[str, str]] = {
         'cmd_settings_desc': "Настройки",
         'cmd_version_desc': "Версия бота",
 
-        # Подписи клавиатур
+        # Keyboard labels
         'btn_settings': "⚙️ Настройки",
         'btn_settings_mode': "🧮 Режим обработки",
         'btn_settings_currencies': "💵 Валюты для конвертации",

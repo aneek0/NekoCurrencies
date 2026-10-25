@@ -1,4 +1,4 @@
-"""Тесты источников курсов: порядок, кэш, кулдаун, нормализация."""
+"""Tests for rate sources: order, cache, cooldown, normalization."""
 
 import pytest
 
@@ -6,7 +6,7 @@ from rates import CoinGeckoSource, FrankfurterSource, RateService, RateSource
 
 
 class FakeSource(RateSource):
-    """Источник-заглушка: отдаёт заданные курсы и считает вызовы."""
+    """Stub source: returns the given rates and counts calls."""
 
     def __init__(self, name, rates=None, categories=('fiat',)):
         self.name = name
@@ -32,7 +32,7 @@ class TestChain:
             source.rates = {'EUR': 1.0}
         rates = service(*sources, failure_cooldown=0)
         await rates.quotes('USD')
-        # опрос прекращается, когда нужных валют уже достаточно
+        # polling stops once the needed currencies are enough
         assert sources[-1].calls == 1
 
     @pytest.mark.asyncio
@@ -94,7 +94,7 @@ class TestSelection:
 
 
 class StubClient:
-    """HTTP-клиент-заглушка: отдаёт заданный ответ или падает."""
+    """Stub HTTP client: returns the given response or fails."""
 
     def __init__(self, payload=None, status_code=200, error=None):
         self.payload = payload

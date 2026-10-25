@@ -1,7 +1,7 @@
-"""Вычисление арифметических выражений в тексте пользователя.
+"""Evaluating arithmetic expressions in user text.
 
-Модуль знает только арифметику и границу между выражением и словом валюты;
-что это за валюта, решает catalog.
+The module knows only arithmetic and the boundary between expression and currency word;
+catalog decides which currency it is.
 """
 
 import re
@@ -13,8 +13,8 @@ _REPLACEMENTS = {
     '×': '*',
     '÷': '/',
     '⋅': '*',
-    '—': '-',  # длинное тире
-    '–': '-',  # короткое тире
+    '—': '-',  # em dash
+    '–': '-',  # en dash
 }
 _TAIL_PATTERNS = (
     f'({INPUT_SYMBOL_CLASS})$',
@@ -32,10 +32,10 @@ _MIDDLE_PATTERNS = (
 
 
 class MathParser:
-    """Извлекает и вычисляет выражения вида '(20 + 5) * 4'."""
+    """Extracts and evaluates expressions like '(20 + 5) * 4'."""
 
     def evaluate(self, text: str) -> tuple[float, str] | None:
-        """(значение, текст валюты как в сообщении) или None."""
+        """(value, currency text as in the message) or None."""
         parsed = self.extract_expression(text)
         if not parsed:
             return None
@@ -46,7 +46,7 @@ class MathParser:
         return value, currency
 
     def extract_expression(self, text: str) -> tuple[str, str] | None:
-        """(выражение без валюты, текст валюты) или None."""
+        """(expression without currency, currency text) or None."""
         text = text.strip()
         if not self._contains_math_expression(text):
             return None
@@ -56,7 +56,7 @@ class MathParser:
         return expression, currency
 
     def _split_currency(self, text: str) -> tuple[str, str]:
-        """Отделить валюту от выражения: ищем её в конце, начале, середине."""
+        """Separate the currency from the expression: look at the end, start, middle."""
         for pattern in _TAIL_PATTERNS:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
@@ -74,13 +74,13 @@ class MathParser:
         return text, ''
 
     def _contains_math_expression(self, text: str) -> bool:
-        """Есть ли в тексте оператор и числа."""
+        """Whether the text has an operator and numbers."""
         has_operators = any(operator in text for operator in _OPERATORS)
         has_numbers = bool(re.search(r'\d+[кк]?', text))
         return has_operators and has_numbers
 
     def evaluate_expression(self, expression: str) -> float | None:
-        """Вычислить очищенное выражение; None, если оно небезопасно/невалидно."""
+        """Evaluate the cleaned expression; None if it is unsafe/invalid."""
         clean_expression = self._process_suffixes(self._clean_expression(expression))
         if not self._is_safe_expression(clean_expression):
             return None
@@ -96,7 +96,7 @@ class MathParser:
         return re.sub(r'(\d+)к', r'\1*1000', expression)
 
     def _clean_expression(self, expression: str) -> str:
-        """Привести символы к ASCII и убрать пробелы."""
+        """Convert symbols to ASCII and drop spaces."""
         for old, new in _REPLACEMENTS.items():
             expression = expression.replace(old, new)
         expression = re.sub(r'\s+', '', expression)
@@ -105,7 +105,7 @@ class MathParser:
         return expression.strip('()')
 
     def _is_safe_expression(self, expression: str) -> bool:
-        """Пропустить только цифры, операторы, скобки и точку."""
+        """Allow only digits, operators, parentheses and the dot."""
         if not expression:
             return False
         if re.search(r'[a-zA-Zа-яА-Я]', expression):

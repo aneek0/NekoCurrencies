@@ -1,4 +1,4 @@
-"""Тесты каталога валют: разбор, подписи и контракты таблиц."""
+"""Currency catalog tests: resolution, labels and table contracts."""
 
 import pytest
 
@@ -45,7 +45,7 @@ class TestResolveInText:
         assert catalog.resolve_in_text("перевести 20 долларов в евро") == "USD"
 
     def test_longest_alias_wins(self):
-        # 'белорусский рубль' длиннее 'рубль' и должен победить
+        # 'белорусский рубль' is longer than 'рубль' and must win
         assert catalog.resolve_in_text("сто белорусский рубль") == "BYN"
 
     def test_symbol(self):
@@ -79,7 +79,7 @@ class TestLabels:
 
 
 class TestContracts:
-    """Таблицы не должны расходиться между собой."""
+    """The tables must not diverge from each other."""
 
     def test_no_duplicate_codes(self):
         assert not set(catalog.FIAT) & set(catalog.CRYPTO)
@@ -89,7 +89,7 @@ class TestContracts:
         assert unknown == set()
 
     def test_every_input_symbol_is_rendered(self):
-        """Символ, который бот понимает на входе, должен быть и в подсказке суммы."""
+        """A symbol the bot accepts as input must also appear in the amount hint."""
         rendered = set(catalog.SYMBOLS.values())
         missing = {symbol for symbol in catalog.INPUT_SYMBOLS if symbol not in rendered}
         assert missing == set()

@@ -1,6 +1,6 @@
-"""Inline-клавиатуры бота.
+"""Bot inline keyboards.
 
-Состав кнопок берётся из реестров settings/catalog, подписи — из localization.t.
+Button sets come from the settings/catalog registries, labels from localization.t.
 """
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -36,7 +36,7 @@ def _chunk(items: list, size: int) -> list[list]:
 
 
 def get_main_menu_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
-    """Главное меню бота."""
+    """Bot main menu."""
     return _markup([
         [_button(t('btn_fiat', lang), 'fiat_currencies'),
          _button(t('btn_crypto', lang), 'crypto_currencies')],
@@ -53,7 +53,7 @@ def get_back_keyboard(callback_data: str, lang: str = 'ru') -> InlineKeyboardMar
 
 
 def get_letter_keyboard(currency_type: str, lang: str = 'ru') -> InlineKeyboardMarkup:
-    """Буквы, с которых начинаются коды валют выбранного типа."""
+    """Starting letters of the currency codes of the selected type."""
     letters = sorted({code[0] for code in catalog.codes(currency_type)})
     rows = [
         [_button(letter, f"letter_{currency_type}_{letter}") for letter in row]
@@ -66,7 +66,7 @@ def get_letter_keyboard(currency_type: str, lang: str = 'ru') -> InlineKeyboardM
 def get_currencies_by_letter_keyboard(currency_type: str, letter: str,
                                       selected_codes: list[str] | None = None,
                                       lang: str = 'ru') -> InlineKeyboardMarkup:
-    """Валюты на выбранную букву с отметкой выбранных."""
+    """Currencies under the selected letter, selected ones marked."""
     selected = set(selected_codes or ())
     codes = [code for code in catalog.codes(currency_type) if code.startswith(letter.upper())]
     buttons = [
@@ -105,7 +105,7 @@ def get_processing_mode_keyboard(current_mode: str = settings.DEFAULT_MODE,
 
 def get_api_source_keyboard(current_source: str = settings.AUTO,
                             lang: str = 'ru') -> InlineKeyboardMarkup:
-    """Источник курсов: авто плюс те, что можно выбрать вручную."""
+    """Rate source: auto plus the ones selectable manually."""
     options = [(settings.AUTO, 'api_source_auto')]
     options += [(source.value, source.label_key) for source in settings.SELECTABLE_SOURCES]
     rows = [
@@ -144,7 +144,7 @@ def get_language_keyboard(current_lang: str = settings.DEFAULT_LANGUAGE,
 
 
 def get_appearance_keyboard(appearance: dict, lang: str = 'ru') -> InlineKeyboardMarkup:
-    """Переключатели оформления: подпись + отметка текущего значения."""
+    """Appearance toggles: label + mark of the current value."""
     rows = []
     for callback_data, key in settings.APPEARANCE_TOGGLES.items():
         enabled = appearance.get(key, settings.APPEARANCE_DEFAULTS[key])

@@ -1,4 +1,4 @@
-"""Тесты конвертации, политики целей и отрисовки строк."""
+"""Tests for conversion, target policy and line rendering."""
 
 import pytest
 
@@ -11,7 +11,7 @@ APPEARANCE = {'show_flags': True, 'show_codes': True, 'show_symbols': True, 'com
 
 
 class FixedSource(RateSource):
-    """Источник с фиксированными курсами к USD."""
+    """Source with fixed rates against USD."""
 
     name = 'fixed'
     categories = frozenset({'fiat', 'crypto'})
@@ -110,7 +110,7 @@ class TestAnswer:
 
     @pytest.mark.asyncio
     async def test_only_source_currency_selected(self):
-        """Нечего конвертировать — ответа нет, бот покажет ошибку конвертации."""
+        """Nothing to convert — no answer, the bot shows a conversion error."""
         assert await conversion.answer(
             Query(10.0, 'USD'), prefs(fiat=['USD']), make_rates()) is None
 

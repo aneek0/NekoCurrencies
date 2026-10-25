@@ -1,7 +1,7 @@
-"""Политика конвертации и отрисовка ответа.
+"""Conversion policy and reply rendering.
 
-Знает, в какие валюты конвертировать, как считать кросс-курс через USD и как
-выглядит строка результата. Не знает ни про Telegram, ни про HTTP.
+Knows which currencies to convert into, how to compute a cross-rate through USD
+and what a result line looks like. Knows nothing about Telegram or HTTP.
 """
 
 from dataclasses import dataclass
@@ -13,7 +13,7 @@ from localization import t
 from query import Query
 from rates import Quotes, RateService
 
-# Целевые валюты для inline, если пользователь ещё не настроил свои.
+# Target currencies for inline when the user has not configured any yet.
 INLINE_DEFAULT_TARGETS = ('USD', 'EUR', 'RUB', 'BYN', 'BTC')
 
 CHANNEL_MESSAGE = 'message'
@@ -22,14 +22,14 @@ CHANNEL_INLINE = 'inline'
 
 @dataclass(frozen=True)
 class Converted:
-    """Сконвертированная сумма и источник её курса."""
+    """Converted amount and the source of its rate."""
 
     amount: float
     source: str
 
 
 def format_amount(amount: float, currency: str, appearance: dict | None = None) -> str:
-    """Строка «🇺🇸 100.00$ USD» с учётом настроек оформления."""
+    """A «🇺🇸 100.00$ USD» style line honouring appearance settings."""
     appearance = appearance or settings.APPEARANCE_DEFAULTS
     flag = catalog.flag(currency) if appearance.get('show_flags', True) else ''
     code = f" {currency}" if appearance.get('show_codes', True) else ''
@@ -50,7 +50,7 @@ def format_amount(amount: float, currency: str, appearance: dict | None = None) 
 
 
 def targets_for(prefs: Preferences, channel: str = CHANNEL_MESSAGE) -> list[str]:
-    """Валюты, в которые конвертируем. В inline пустой выбор подменяется дефолтом."""
+    """Currencies we convert into. In inline an empty selection falls back to defaults."""
     selected = list(prefs.fiat) + list(prefs.crypto)
     if selected or channel == CHANNEL_MESSAGE:
         return selected
@@ -59,7 +59,7 @@ def targets_for(prefs: Preferences, channel: str = CHANNEL_MESSAGE) -> list[str]
 
 async def convert(query: Query, targets: list[str], rates: RateService,
                   preference: str = settings.AUTO) -> dict[str, Converted]:
-    """Конвертировать через USD: {code: Converted}. Пусто, если курсов нет."""
+    """Convert through USD: {code: Converted}. Empty when no rates are available."""
     required = [query.currency, *targets, 'USD']
     quotes = await rates.quotes('USD', required, preference)
     if not quotes:
@@ -90,10 +90,10 @@ def _cross_rates(query: Query, targets: list[str], quotes: Quotes) -> dict[str, 
 
 async def answer(query: Query, prefs: Preferences, rates: RateService,
                  channel: str = CHANNEL_MESSAGE) -> str | None:
-    """Готовый текст ответа; None, если сконвертировать не удалось.
+    """Ready reply text; None when the conversion failed.
 
-    Пустой выбор валют в режиме message даёт подсказку вместо результата;
-    в inline подставляются INLINE_DEFAULT_TARGETS.
+    An empty selection in message mode gives a hint instead of a result;
+    in inline INLINE_DEFAULT_TARGETS are substituted.
     """
     targets = targets_for(prefs, channel)
     if not targets:
@@ -107,7 +107,7 @@ async def answer(query: Query, prefs: Preferences, rates: RateService,
 
 
 def render(query: Query, converted: dict[str, Converted], prefs: Preferences) -> str:
-    """Заголовок с исходной суммой и блоки результатов: фиат, затем крипта."""
+    """Header with the source amount and result blocks: fiat, then crypto."""
     appearance = prefs.appearance
     fiat_lines = []
     crypto_lines = []

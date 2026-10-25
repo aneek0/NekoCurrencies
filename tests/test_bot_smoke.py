@@ -1,4 +1,4 @@
-"""Дымовые тесты Telegram-слоя: клавиатуры и диспетчер без сети."""
+"""Smoke tests for the Telegram layer: keyboards and dispatcher without network."""
 
 import pytest
 from aiogram.types import Chat, Message, Update, User
@@ -14,7 +14,7 @@ def all_buttons(markup):
 
 
 def test_every_keyboard_builds_with_buttons():
-    """Каждая клавиатура строится и не пуста — иначе кнопка просто исчезнет."""
+    """Every keyboard builds and is not empty — otherwise the button just disappears."""
     markups = [
         keyboards.get_main_menu_keyboard('ru'),
         keyboards.get_help_keyboard('en'),

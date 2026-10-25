@@ -1,7 +1,7 @@
-"""Разбор текста пользователя в запрос на конвертацию.
+"""Parsing user text into a conversion query.
 
-Единственное место, где решается, что пользователь написал: число, выражение,
-слова, валюта и режим обработки.
+The only place that decides what the user wrote: a number, an expression,
+words, a currency and the processing mode.
 """
 
 import re
@@ -17,7 +17,7 @@ from math_parser import MathParser
 
 @dataclass(frozen=True)
 class Query:
-    """Сумма и валюта, извлечённые из сообщения."""
+    """Amount and currency extracted from the message."""
 
     amount: float
     currency: str
@@ -25,13 +25,13 @@ class Query:
 
 _PARSER = MathParser()
 
-# (шаблон, порядок групп): что считать числом, а что валютой.
+# (pattern, group order): what counts as the number and what as the currency.
 _AMOUNT_PATTERNS = (
-    # Слипшиеся: "15usd", "1бр.", "100eur"
+    # Glued together: "15usd", "1бр.", "100eur"
     (r'(\d+(?:[.,]\d+)?)([a-z]{3}|[а-яё.]+)', 'num_first'),
     # "5 долларов", "10.5 евро", "100 dollars"
     (r'(\d+(?:[.,]\d+)?)\s+([a-zа-яё]+)', 'num_first'),
-    # Короткие алиасы: "1 tg", "5 р", "10 тг"
+    # Short aliases: "1 tg", "5 р", "10 тг"
     (r'(\d+(?:[.,]\d+)?)\s+([a-zа-яё]{1,3})', 'num_first'),
     # "$5", "€10.5"
     (f'({INPUT_SYMBOL_CLASS})\\s*(\\d+(?:[.,]\\d+)?)', 'sym_first'),
@@ -59,7 +59,7 @@ _RU_NUMBERS = {
 
 
 def parse(text: str | None, mode: str = settings.DEFAULT_MODE) -> Query | None:
-    """Разобрать сообщение; None, если валюты или суммы в нём нет."""
+    """Parse the message; None if it has no currency or amount."""
     text = (text or '').strip()
     if not text:
         return None
@@ -67,7 +67,7 @@ def parse(text: str | None, mode: str = settings.DEFAULT_MODE) -> Query | None:
         mode = settings.DEFAULT_MODE
     lowered = text.lower()
 
-    # Упрощённый режим реагирует только на число в начале сообщения.
+    # Simplified mode reacts only to a number at the start of the message.
     if mode == 'simplified' and not lowered[0].isdigit():
         return None
 
@@ -134,7 +134,7 @@ def _parse_words(text: str) -> Query | None:
 
 
 def words_to_number(text: str) -> float | None:
-    """'двадцать пять' → 25. Сначала w2n, затем собственный словарь."""
+    """'двадцать пять' → 25. w2n first, then the built-in dictionary."""
     clean_text = re.sub(r'[^\w\s]', '', text.lower())
     try:
         return w2n.word_to_num(clean_text)

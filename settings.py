@@ -1,7 +1,7 @@
-"""Реестр вариантов настроек: допустимые значения, порядок источников, подписи.
+"""Registry of settings options: allowed values, source order, labels.
 
-Один реестр кормит клавиатуры, валидацию в базе и цепочку источников курсов,
-поэтому новый источник добавляется здесь и в rates.py — без правок в других местах.
+A single registry feeds the keyboards, database validation and rate source
+chain, so a new source is added here and in rates.py — with no edits elsewhere.
 """
 
 from dataclasses import dataclass
@@ -19,14 +19,14 @@ DEFAULT_MODE = 'standard'
 DEFAULT_LANGUAGE = 'ru'
 DEFAULT_API_SOURCE = AUTO
 
-# Варианты оформления: ключ в appearance → значение по умолчанию.
+# Appearance options: key in appearance → default value.
 APPEARANCE_DEFAULTS = {
     'show_flags': True,
     'show_codes': True,
     'show_symbols': True,
     'compact': False,
 }
-# callback_data → ключ appearance (порядок = порядок кнопок).
+# callback_data → appearance key (order = button order).
 APPEARANCE_TOGGLES = {
     'toggle_flags': 'show_flags',
     'toggle_codes': 'show_codes',
@@ -41,7 +41,7 @@ APPEARANCE_LABELS = {
 
 @dataclass(frozen=True)
 class ApiSource:
-    """Источник курсов: значение настройки, провайдер, приоритет, подпись."""
+    """Rate source: setting value, provider, priority, label."""
 
     value: str
     provider: str
@@ -55,7 +55,7 @@ API_SOURCES = (
     ApiSource('2', 'nbrb', 2, 'api_source_nbrb'),
     ApiSource('3', 'currencyfreaks', 3, 'api_source_currencyfreaks'),
     ApiSource('4', 'exchangerate', 4, 'api_source_exchangerate'),
-    # CoinGecko — неявный фоллбек для крипты, выбрать вручную нельзя.
+    # CoinGecko — implicit fallback for crypto, cannot be selected manually.
     ApiSource('5', 'coingecko', 5, 'api_source_coingecko', selectable=False),
 )
 
@@ -67,16 +67,16 @@ PROVIDER_ORDER = tuple(
 
 
 def source(value: str) -> ApiSource | None:
-    """Настройка по значению ('3' → CurrencyFreaks) или None."""
+    """Setting by value ('3' → CurrencyFreaks) or None."""
     return next((item for item in API_SOURCES if item.value == value), None)
 
 
 def provider_for(value: str) -> str | None:
-    """Провайдер, который пользователь поставил первым; None для 'auto'."""
+    """Provider the user placed first; None for 'auto'."""
     item = source(value)
     return item.provider if item else None
 
 
 def value_for(provider: str) -> str | None:
-    """Значение настройки для провайдера (обратное к provider_for)."""
+    """Setting value for a provider (inverse of provider_for)."""
     return next((item.value for item in API_SOURCES if item.provider == provider), None)
