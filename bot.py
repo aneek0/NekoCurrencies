@@ -443,10 +443,10 @@ def register_handlers(dp: Dispatcher, services: Services):
     dp.inline_query.middleware(ContextMiddleware(services))
     dp.message.middleware(RateLimitMiddleware())
 
-    dp.message.register(cmd_start, Command("start", "старт"))
-    dp.message.register(cmd_help, Command("help", "помощь"))
-    dp.message.register(cmd_settings, Command("settings", "настройки"))
-    dp.message.register(cmd_version, Command("version", "версия"))
+    dp.message.register(cmd_start, Command("start"))
+    dp.message.register(cmd_help, Command("help"))
+    dp.message.register(cmd_settings, Command("settings"))
+    dp.message.register(cmd_version, Command("version"))
     dp.message.register(process_message)
 
     dp.callback_query.register(process_settings_callback, lambda c: c.data == "settings")
