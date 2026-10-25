@@ -1,4 +1,4 @@
-<h1 align="center">💱 NekoCurrencies</h1>
+<h1 align="center">😼💱 NekoCurrencies</h1>
 
 <p align="center">
   <strong>Telegram-бот, который сам находит сумму и валюту в сообщении и пересчитывает её в ваши валюты</strong>
@@ -11,9 +11,6 @@
 <p align="center">
   <a href="https://github.com/aneek0/NekoCurrencies/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/aneek0/NekoCurrencies/ci.yml?branch=main&style=for-the-badge&label=CI" alt="CI passing"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11+-green.svg?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+"></a>
-  <a href="https://docs.aiogram.dev/"><img src="https://img.shields.io/badge/aiogram-3.x-2CA5E0.svg?style=for-the-badge" alt="aiogram 3.x"></a>
-  <a href="https://github.com/aneek0/NekoCurrencies/stargazers"><img src="https://img.shields.io/github/stars/aneek0/NekoCurrencies?style=for-the-badge" alt="GitHub Stars"></a>
 </p>
 
 <p align="center">
